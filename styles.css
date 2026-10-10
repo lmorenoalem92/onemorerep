@@ -178,3 +178,8 @@ svg { flex-shrink: 0; }
 .ptr:last-child { border-bottom: 0; }
 .plan { align-items: flex-start; gap: 4px; border: 2px solid var(--btn); }
 .plan.on { border-color: var(--acc); }
+
+/* --- ejercicios compartidos --- */
+.sugg { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 6px 0; border: 0; border-bottom: 1px solid var(--card2); background: none; color: var(--tx); text-align: left; width: 100%; }
+.sugg .use { height: 36px; padding: 0 12px; border-radius: 10px; background: var(--acc); color: var(--on-acc); font-size: 14px; font-weight: 700; display: flex; align-items: center; flex-shrink: 0; }
+.tag-dup { font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 7px; background: var(--warm-bg); color: var(--acc-t); border: 1px solid var(--warm-bd); white-space: nowrap; }
