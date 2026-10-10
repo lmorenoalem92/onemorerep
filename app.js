@@ -13,7 +13,22 @@ const GROUPS = ['Pecho', 'Espalda', 'Pierna', 'Hombro', 'Bíceps', 'Tríceps', '
 const RADAR = ['Pecho', 'Espalda', 'Pierna', 'Hombro', 'Bíceps', 'Tríceps'];
 const DEF_SETTINGS = { step: 2.5, stepLb: 5, restWarm: 60, restEff: 120 };
 const FREE_DAYS = 3;
+const APP_VER = 'V2';
 const C = { acc: '#C8FF2E', ok: '#4DD7FF', bad: '#F2A0A0', grid: '#2E2F34', mu: '#A3A3A8', tx: '#F4F1EC', card: '#1C1D20' };
+// Tonos neón: el color de "progresaste" (ok) cambia para no confundirse con el neón elegido
+const NEONS = [
+  { id: 'volt', name: 'Volt', acc: '#C8FF2E', accT: '#D4FF5C', wBg: '#1A220C', wBd: '#3B4E14', wTx: '#D9F29A', nTx: '#E8F5C8', done: '#5E7A1A', ok: '#4DD7FF', okBg: '#0E2A33' },
+  { id: 'cian', name: 'Cian', acc: '#2EF2FF', accT: '#6CF6FF', wBg: '#0B2226', wBd: '#145059', wTx: '#A6F3F8', nTx: '#D3F9FB', done: '#1A6A73', ok: '#B8F04A', okBg: '#1E2A0C' },
+  { id: 'magenta', name: 'Magenta', acc: '#FF3DCB', accT: '#FF6ED8', wBg: '#2A0F22', wBd: '#5E1F4D', wTx: '#F6B5E5', nTx: '#FBD9F1', done: '#7A2A63', ok: '#4DD7FF', okBg: '#0E2A33' },
+  { id: 'naranja', name: 'Naranja', acc: '#FF6A1A', accT: '#FF8A4C', wBg: '#2A1A10', wBd: '#5A3018', wTx: '#E7B595', nTx: '#F1D9C8', done: '#8A4A26', ok: '#7EE2A8', okBg: '#123222' },
+  { id: 'violeta', name: 'Violeta', acc: '#A98BFF', accT: '#BFA8FF', wBg: '#1C1530', wBd: '#3E2F6B', wTx: '#D3C6FF', nTx: '#E6DEFF', done: '#4F3F8A', ok: '#7EE2A8', okBg: '#123222' }
+];
+function applyNeon() {
+  const t = NEONS.find(n => n.id === (db.settings.neon || 'volt')) || NEONS[0];
+  const s = document.documentElement.style;
+  [['--acc', t.acc], ['--acc-t', t.accT], ['--warm-bg', t.wBg], ['--warm-bd', t.wBd], ['--warm-tx', t.wTx], ['--note-tx', t.nTx], ['--done', t.done], ['--ok', t.ok], ['--ok-bg', t.okBg]].forEach(([k, v]) => s.setProperty(k, v));
+  C.acc = t.acc; C.ok = t.ok;
+}
 
 const ICON = {
   back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
@@ -133,6 +148,7 @@ function save() {
 }
 
 let db = load();
+applyNeon();
 const ui = {
   view: !db.onboarded ? 'welcome' : db.current ? 'train' : 'home',
   planId: null, form: null, summary: null, rest: null, tick: null, keep: false,
@@ -375,7 +391,7 @@ function loadDemo() {
   };
   runPhase(p1, -84, -43);
   runPhase(p2, -35, -1);
-  db = seed();
+  const keepNeon = db.settings.neon; db = seed(); db.settings.neon = keepNeon;
   db.onboarded = true; db.premium = true; db.template = 'clasico'; db.programName = 'Programa de ejemplo';
   db.routines = b.routines; db.programs = [p1, p2]; db.sessions = sessions;
   save(); toast('Datos de ejemplo cargados · Premium de prueba activado'); ui.ch = { type: 'lineas', ex: null, range: 'todo', sel: null }; go('progress');
@@ -486,6 +502,7 @@ function rerender() { ui.keep = true; render(); }
 function render() {
   const m0 = $('.main'); const top = ui.keep && m0 ? m0.scrollTop : 0;
   const V = { welcome: vWelcome, welcome2: vEnfoques, home: vHome, train: vTrain, plan: vPlan, programa: vPrograma, phase: vPhase, progress: vProgress, settings: vSettings, summary: vSummary, premium: vPremium, descanso: vDescanso, exlist: vExList, exedit: vExEdit };
+  applyNeon();
   $('#app').innerHTML = (V[ui.view] || vHome)();
   const m = $('.main'); if (m) m.scrollTop = top;
   ui.keep = false;
@@ -568,7 +585,7 @@ function vHome() {
     b += `<div class="card"><span class="big">Sin fase activa</span><span class="muted sm">Crea o activa una fase para llevar la cuenta de semanas y ciclos.</span><button class="btn acc" data-a="go" data-v="programa">Ir al programa</button></div>`;
     b += `<span class="eyebrow mt">Días</span>` + db.routines.map(r => dayRow(r)).join('');
   }
-  if (!isPro()) b += `<button class="card upsell" data-a="premium"><div class="col"><span style="font-weight:700">Planea el año en fases</span><span class="sm" style="color:#D9F29A">Los 6 enfoques, descanso activo, todas las gráficas y exportar a Excel</span></div>${ICON.chev}</button>`;
+  if (!isPro()) b += `<button class="card upsell" data-a="premium"><div class="col"><span style="font-weight:700">Planea el año en fases</span><span class="sm" style="color:var(--warm-tx)">Los 6 enfoques, descanso activo, todas las gráficas y exportar a Excel</span></div>${ICON.chev}</button>`;
   return screen({ title: 'Inicio', sub: db.programName || 'Mi programa', subHl: true, right: proPill(), body: b, nav: 'home' });
 }
 
@@ -879,7 +896,7 @@ function vProgress() {
       const u = unitOf(ex), full = history(ex.id).map(h => ({ date: h.date, programId: h.programId, w: r1(conv(h.w, h.unit, u)), r: h.r }));
       full.forEach((p, i) => { p.prevW = i ? full[i - 1].w : null; p.prevR = i ? full[i - 1].r : null; });
       const pts = full.filter(p => inRange(p));
-      const titles = { lineas: ['Peso de la serie efectiva', 'Toca un punto para ver la sesión. Verde: subiste peso.'], columnas: ['Reps al fallo por sesión', ex.repMax ? `Verde: llegaste al tope de ${ex.repMax} reps; la siguiente sube el peso.` : 'Define reps objetivo en Planear para ver la línea de tope.'], dispersion: ['Peso contra reps', 'Cada punto es una sesión. Hacia arriba y a la derecha = más fuerte.'], tabla: ['Historial', 'De la más reciente a la más antigua.'] };
+      const titles = { lineas: ['Peso de la serie efectiva', 'Toca un punto para ver la sesión. Los puntos resaltados marcan cuando subiste peso.'], columnas: ['Reps al fallo por sesión', ex.repMax ? `Las columnas resaltadas llegaron al tope de ${ex.repMax} reps; la siguiente sube el peso.` : 'Define reps objetivo en Planear para ver la línea de tope.'], dispersion: ['Peso contra reps', 'Cada punto es una sesión. Hacia arriba y a la derecha = más fuerte.'], tabla: ['Historial', 'De la más reciente a la más antigua.'] };
       inner += `<div class="col" style="gap:2px"><span style="font-size:17px;font-weight:700">${titles[t.id][0]}</span><span class="muted sm">${titles[t.id][1]}</span></div>`;
       if (!pts.length) inner += `<div class="muted sm">Sin sesiones de este ejercicio en el periodo.</div>`;
       else if (t.id === 'tabla') {
@@ -905,7 +922,7 @@ function vProgress() {
     let recs = 0; ss.forEach(s => s.entries.forEach(e => { const h = history(e.exerciseId); const i = h.findIndex(x => x.date === s.date); if (i > 0 && beats(h[i], h[i - 1])) recs++; }));
     tiles = `<div class="grid3"><div class="card stat"><span class="muted sm">Sesiones</span><span class="num md">${ss.length}</span></div><div class="card stat gain"><span class="sm">Récords</span><span class="num md">${recs}</span></div><div class="card stat"><span class="muted sm">Duración prom.</span><span class="num md">${timed.length ? fmtMin(timed.reduce((a, s) => a + s.durationSec, 0) / timed.length) : '—'}</span></div></div>`;
   }
-  b += `<div class="card chartcard ${locked ? 'locked' : ''}"><div class="chartbody" ${locked ? 'aria-hidden="true"' : ''}>${inner}</div>${locked ? `<div class="lockover"><span class="tag-pro">PREMIUM</span><span style="font-weight:700">Gráfica de ${t.label.toLowerCase()}</span><span class="sm" style="color:#D9F29A">Disponible con Premium. Esto es una vista previa.</span><button class="btn acc" data-a="premium">Ver Premium</button></div>` : ''}</div>`;
+  b += `<div class="card chartcard ${locked ? 'locked' : ''}"><div class="chartbody" ${locked ? 'aria-hidden="true"' : ''}>${inner}</div>${locked ? `<div class="lockover"><span class="tag-pro">PREMIUM</span><span style="font-weight:700">Gráfica de ${t.label.toLowerCase()}</span><span class="sm" style="color:var(--warm-tx)">Disponible con Premium. Esto es una vista previa.</span><button class="btn acc" data-a="premium">Ver Premium</button></div>` : ''}</div>`;
   b += tiles;
   return screen({ title: 'Progreso', sub: 'Serie efectiva', body: b, nav: 'progress' });
 }
@@ -926,6 +943,9 @@ function vSettings() {
   const chips = (k, opts, unit) => `<div class="chips">${opts.map(n => `<button class="chip ${s[k] === n ? 'on' : ''}" data-a="setNum" data-k="${k}" data-n="${n}">${n}${unit}</button>`).join('')}</div>`;
   const b = `<button class="card rrow" data-a="premium"><div class="col"><span class="eyebrow ${isPro() ? 'hl' : ''}">Plan</span><span style="font-weight:700;font-size:17px">${isPro() ? 'Premium (prueba)' : 'Gratis'}</span></div>${ICON.chev}</button>
   <button class="card rrow" data-a="myEx"><div class="col"><span class="eyebrow">Ejercicios</span><span style="font-weight:700;font-size:17px">Mis ejercicios</span><span class="muted sm">Renombrar, cambiar grupo o combinar duplicados</span></div>${ICON.chev}</button>
+  <div class="card"><span class="eyebrow">Color neón</span>
+    <div class="chips" role="group" aria-label="Color neón">${NEONS.map(n => `<button class="chip neon ${(s.neon || 'volt') === n.id ? 'on' : ''}" data-a="setNeon" data-v="${n.id}" aria-pressed="${(s.neon || 'volt') === n.id}"><i style="background:${n.acc}"></i>${n.name}</button>`).join('')}</div>
+    <span class="muted sm">Cambia botones, gráficas y acentos. El ícono del celular se queda en Volt.</span></div>
   <div class="card"><span class="eyebrow">Incremento con −/+ en kg</span>${chips('step', [1, 2.5, 5], ' kg')}
     <span class="eyebrow">Incremento con −/+ en lb</span>${chips('stepLb', [2.5, 5, 10], ' lb')}</div>
   <div class="card"><span class="eyebrow">Descanso después de calentamiento</span>${chips('restWarm', [45, 60, 90], ' s')}
@@ -938,7 +958,7 @@ function vSettings() {
     <button class="btn" data-a="demo">Cargar datos de ejemplo</button>
     <button class="btn" data-a="restart">Ver la bienvenida otra vez</button></div>
   <button class="btn text danger" data-a="reset">Borrar todos los datos</button>
-  <span class="muted sm" style="text-align:center">${esc(BRAND)} · versión de prueba 0.2</span>`;
+  <span class="muted sm" style="text-align:center">${esc(BRAND)} · ${APP_VER}</span>`;
   return screen({ title: 'Ajustes', sub: BRAND, subHl: true, body: b, nav: 'settings' });
 }
 
@@ -1096,6 +1116,7 @@ const ACT = {
   chSel: d => { ui.ch.sel = +d.k; rerender(); },
 
   setNum: d => { db.settings[d.k] = +d.n; save(); rerender(); },
+  setNeon: d => { db.settings.neon = d.v; applyNeon(); save(); rerender(); },
   exportCsv,
   backup: () => download(JSON.stringify(db, null, 1), 'application/json', `${fileSlug}-respaldo-${todayISO()}.json`),
   importBtn: () => $('#importFile').click(),
