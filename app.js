@@ -9,11 +9,11 @@ const KEY = 'omr.v1';
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const TECHS = ['Normal', 'Forzadas', 'Rest-pause', 'Negativas'];
 const PRESETS = ['Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5', 'Fase 6'];
-const GROUPS = ['Pecho', 'Espalda', 'Pierna', 'Hombro', 'Bíceps', 'Tríceps', 'Otro'];
-const RADAR = ['Pecho', 'Espalda', 'Pierna', 'Hombro', 'Bíceps', 'Tríceps'];
+const GROUPS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', 'Core', 'Otro'];
+const RADAR = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', 'Core'];
 const DEF_SETTINGS = { step: 2.5, stepLb: 5, restWarm: 60, restEff: 120 };
 const FREE_DAYS = 3;
-const APP_VER = 'V2';
+const APP_VER = 'V3';
 const C = { acc: '#C8FF2E', ok: '#4DD7FF', bad: '#F2A0A0', grid: '#2E2F34', mu: '#A3A3A8', tx: '#F4F1EC', card: '#1C1D20' };
 // Tonos neón: el color de "progresaste" (ok) cambia para no confundirse con el neón elegido
 const NEONS = [
@@ -33,6 +33,7 @@ function applyNeon() {
 const ICON = {
   back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
   close: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  pause: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   play: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
   check: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   checkSm: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -139,8 +140,13 @@ function validate(d) {
   d.settings = Object.assign({}, DEF_SETTINGS, d.settings);
   return d;
 }
+function fixCurrent(d) {
+  const c = d && d.current;
+  if (c && c.acc === undefined) { c.acc = 0; c.runAt = c.startedAt || null; c.firstAt = c.startedAt || null; delete c.startedAt; }
+  return d;
+}
 function load() {
-  try { const raw = localStorage.getItem(KEY); if (raw) { const d = validate(JSON.parse(raw)); if (d) return d; } } catch (e) { /* sin acceso */ }
+  try { const raw = localStorage.getItem(KEY); if (raw) { const d = fixCurrent(validate(JSON.parse(raw))); if (d) return d; } } catch (e) { /* sin acceso */ }
   return seed();
 }
 function save() {
@@ -265,6 +271,43 @@ function mergeExercise(srcId, dstId) {
     r.exercises.forEach(x => { if (x.id === srcId) Object.assign(x, { id: dstId, name: dst.name, group: dst.group, unit: dst.unit }); });
   });
 }
+/* ---------- catálogo de ejercicios del gimnasio ---------- */
+const CAT_GROUPS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', 'Core'];
+const catAllowed = c => c.b || isPro();
+const CAT_BASIC = CATALOGO.filter(c => c.b).length;
+function addCatToDay(c) {
+  const r = routine(ui.planId); if (!r) return false;
+  const ex = catalog().find(x => normName(x.name) === normName(c.n));
+  if (ex) return addExerciseToDay(r, ex.id);
+  r.exercises.push({ id: uid(), name: c.n, group: c.g, unit: catUnit(c.e), equip: c.e, warmups: 1 });
+  return true;
+}
+function catRow(c, inDay) {
+  const ok = catAllowed(c);
+  return `<button class="sugg" data-a="useCat" data-n="${esc(c.n)}" ${inDay ? 'disabled' : ''}><span class="col"><span style="font-weight:600">${esc(c.n)}</span><span class="muted sm">${esc(c.g)} · ${esc(c.e)}</span></span>${inDay ? '<span class="tag">En el día ✓</span>' : ok ? '<span class="use">Agregar</span>' : '<span class="tag-pro">PREMIUM</span>'}</button>`;
+}
+function catViewBody() {
+  const f = ui.cf, r = routine(ui.planId), q = normName(f.q || '');
+  const dayNames = new Set((r ? r.exercises : []).map(x => normName(x.name)));
+  let list = CATALOGO.filter(c => (f.g === 'Todos' || c.g === f.g) && (f.e === 'Todo' || c.e === f.e) && (!q || normName(c.n).includes(q)));
+  if (!isPro()) list = list.filter(c => c.b).concat(list.filter(c => !c.b));
+  if (!list.length) return `<div class="card muted">Ningún ejercicio del catálogo coincide. Puedes crearlo tú desde Planear día.</div>`;
+  const locked = list.filter(c => !catAllowed(c)).length;
+  let h = `<span class="muted sm">${list.length} ejercicios${locked ? ` · ${locked} con Premium` : ''}</span>`;
+  h += `<div class="card" style="padding:4px 14px;gap:0">${list.map(c => catRow(c, dayNames.has(normName(c.n)))).join('')}</div>`;
+  if (locked) h += `<button class="card upsell" data-a="premium"><div class="col"><span style="font-weight:700">Desbloquea el catálogo completo</span><span class="sm" style="color:var(--warm-tx)">${CATALOGO.length} ejercicios con Premium · gratis tienes ${CAT_BASIC} básicos</span></div>${ICON.chev}</button>`;
+  return h;
+}
+function vCatView() {
+  const r = routine(ui.planId);
+  if (!r) { ui.view = 'home'; return vHome(); }
+  const f = ui.cf;
+  const b = `<input id="catq2" class="inp" placeholder="Buscar en el catálogo" value="${esc(f.q || '')}" aria-label="Buscar en el catálogo" autocomplete="off">
+  <div class="hscroll" role="group" aria-label="Grupo muscular">${['Todos'].concat(CAT_GROUPS).map(g => `<button class="chip ${f.g === g ? 'on' : ''}" data-a="cfG" data-v="${g}" aria-pressed="${f.g === g}">${g}</button>`).join('')}</div>
+  <div class="hscroll" role="group" aria-label="Equipo">${['Todo'].concat(EQUIPOS).map(e => `<button class="chip ${f.e === e ? 'on' : ''}" data-a="cfE" data-v="${e}" aria-pressed="${f.e === e}">${e}</button>`).join('')}</div>
+  <div id="catBody" class="col" style="gap:10px">${catViewBody()}</div>`;
+  return screen({ title: 'Catálogo', sub: 'Agregar a ' + r.name, back: 'plan', body: b, foot: `<button class="btn acc lg full" data-a="go" data-v="plan">Listo</button>` });
+}
 function suggHtml(q) {
   const r = routine(ui.planId); if (!r) return '';
   const nq = normName(q), all = catalog(), inDay = new Set(r.exercises.map(x => x.id));
@@ -273,8 +316,12 @@ function suggHtml(q) {
   const exact = all.find(c => normName(c.name) === nq);
   let h = '';
   if (list.length) h += `<span class="eyebrow">${nq ? 'Ya los tienes · se comparte el historial' : 'Tus ejercicios'}</span>` + list.map(c => `<button class="sugg" data-a="useEx" data-id="${c.id}"><span class="col"><span style="font-weight:600">${esc(c.name)}</span><span class="muted sm">${esc(c.group)} · ${esc(catInfo(c))}</span></span><span class="use">Usar</span></button>`).join('');
-  else if (nq && !exact) h += `<span class="muted sm">No tienes ningún ejercicio con ese nombre.</span>`;
-  if (nq && !exact) h += `<button class="btn dashed" data-a="exAdd">+ Crear nuevo: “${esc(q.trim())}”</button>`;
+  const have = new Set(all.map(c => normName(c.name)));
+  const cm = nq ? CATALOGO.filter(c => !have.has(normName(c.n)) && normName(c.n).includes(nq)).sort((a, b) => catAllowed(b) - catAllowed(a)).slice(0, 6) : [];
+  if (cm.length) h += `<span class="eyebrow">Del catálogo</span>` + cm.map(c => catRow(c, false)).join('');
+  if (nq && !exact && !list.length && !cm.length) h += `<span class="muted sm">No hay ningún ejercicio con ese nombre.</span>`;
+  const catExact = CATALOGO.find(c => normName(c.n) === nq && catAllowed(c));
+  if (nq && !exact && !catExact) h += `<button class="btn dashed" data-a="exAdd">+ Crear nuevo: “${esc(q.trim())}”</button>`;
   if (exact && inDay.has(exact.id)) h += `<span class="muted sm">“${esc(exact.name)}” ya está en este día.</span>`;
   const twin = nq && !exact && all.find(c => inDay.has(c.id) && dupKey(c.name) === dupKey(q));
   if (twin) h += `<span class="muted sm">Se parece a “${esc(twin.name)}”, que ya está en este día.</span>`;
@@ -407,7 +454,7 @@ function startTraining(rid) {
   if (!r || !r.exercises.length) { toast('Primero agrega ejercicios a este día'); ui.planId = rid; go('plan'); return; }
   const p = activePhase();
   db.current = {
-    routineId: r.id, routineName: r.name, programId: p ? p.id : null, idx: 0, startedAt: Date.now(),
+    routineId: r.id, routineName: r.name, programId: p ? p.id : null, idx: 0, acc: 0, runAt: null, firstAt: null,
     entries: r.exercises.map(ex => {
       const last = lastEntry(ex.id);
       const u = unitOf(ex), lu = last ? unitOf(last) : u, step = stepFor(u);
@@ -431,8 +478,9 @@ function finishTraining() {
     if (!confirm('No registraste ninguna serie efectiva. ¿Cerrar el entreno sin guardar?')) return;
   } else {
     const end = Date.now();
-    let dur = Math.round((end - c.startedAt) / 1000);
-    if (dur > 4 * 3600 && !confirm(`El cronómetro marca ${fmtDur(dur)}. ¿Guardar esa duración?\n\nSi eliges Cancelar, el entreno se guarda sin duración.`)) dur = null;
+    let dur = Math.round(tElapsed(c) / 1000) || null;
+    const started = c.firstAt || end;
+    if (dur && dur > 4 * 3600 && !confirm(`El cronómetro marca ${fmtDur(dur)}. ¿Guardar esa duración?\n\nSi eliges Cancelar, el entreno se guarda sin duración.`)) dur = null;
     const prev = lastSessionOf(c.routineId);
     const prs = [], firsts = [], same = [];
     done.forEach(e => {
@@ -441,13 +489,13 @@ function finishTraining() {
       else { const li = lastEffIn(l, unitOf(e)); if (beats(e.eff, li)) prs.push({ name: e.name, d: e.eff.w > li.w ? '+' + fmt(r1(e.eff.w - li.w)) + ' ' + unitOf(e) : '+' + (e.eff.r - li.r) + (e.eff.r - li.r === 1 ? ' rep' : ' reps') }); else same.push({ name: e.name, down: beats(li, e.eff) }); }
     });
     db.sessions.push({
-      id: uid(), date: todayISO(), at: end, startedAt: c.startedAt, endedAt: end, durationSec: dur,
+      id: uid(), date: todayISO(), at: end, startedAt: started, endedAt: end, durationSec: dur,
       programId: c.programId, routineId: c.routineId, routineName: c.routineName,
       entries: done.map(e => ({ exerciseId: e.exerciseId, name: e.name, unit: unitOf(e), warm: e.warm.map(w => ({ w: w.w, r: w.r })), eff: { w: e.eff.w, r: e.eff.r, tech: e.eff.tech } }))
     });
     ui.summary = {
       routineName: c.routineName, total: done.length, of: c.entries.length, prs, firsts, same,
-      dur, startedAt: c.startedAt, endedAt: end, prevDur: prev && prev.durationSec,
+      dur, startedAt: started, endedAt: end, prevDur: prev && prev.durationSec,
       phaseName: (phaseById(c.programId) || {}).name || '', dayN: dayNum(c.routineId)
     };
   }
@@ -466,7 +514,20 @@ function compare(eff, last, u) {
 }
 
 /* ---------- cronómetro y descanso ---------- */
-const elapsedText = () => db.current ? fmtDur(Math.max(0, Math.floor((Date.now() - db.current.startedAt) / 1000))) : '0:00';
+// Cronómetro: no arranca solo. Empieza al marcar la primera serie o con "Iniciar"; se puede pausar y reiniciar.
+const tElapsed = c => !c ? 0 : Math.max(0, (c.acc || 0) + (c.runAt ? Date.now() - c.runAt : 0));
+const tState = c => !c ? 'idle' : c.runAt ? 'run' : (c.acc ? 'pause' : 'idle');
+function tStart() { const c = db.current; if (!c || c.runAt) return; c.runAt = Date.now(); if (!c.firstAt) c.firstAt = c.runAt; }
+function tPause() { const c = db.current; if (!c || !c.runAt) return; c.acc = tElapsed(c); c.runAt = null; }
+function tReset() { const c = db.current; if (!c) return; c.acc = 0; c.runAt = null; c.firstAt = null; }
+const elapsedText = () => fmtDur(Math.floor(tElapsed(db.current) / 1000));
+const anyDone = c => c.entries.some(e => e.eff.done || e.warm.some(w => w.done));
+function timerBar() {
+  const st = tState(db.current);
+  if (st === 'idle') return `<div class="tbar"><span class="muted sm" style="flex:1">El cronómetro arranca al marcar tu primera serie.</span><button class="btn ghost" data-a="tStart">${ICON.play} Iniciar</button></div>`;
+  if (st === 'run') return `<div class="tbar"><button class="btn ghost" data-a="tPause">${ICON.pause} Pausar</button><button class="btn text" data-a="tReset">Reiniciar</button></div>`;
+  return `<div class="tbar paused"><span class="sm" style="flex:1;font-weight:600">Cronómetro en pausa</span><button class="btn acc" data-a="tStart">${ICON.play} Reanudar</button><button class="btn text" data-a="tReset">Reiniciar</button></div>`;
+}
 function restText() {
   const left = ui.rest ? Math.max(0, Math.ceil((ui.rest.end - Date.now()) / 1000)) : 0;
   return Math.floor(left / 60) + ':' + pad2(left % 60);
@@ -501,10 +562,11 @@ function go(v) { ui.view = v; ui.keep = false; render(); }
 function rerender() { ui.keep = true; render(); }
 function render() {
   const m0 = $('.main'); const top = ui.keep && m0 ? m0.scrollTop : 0;
-  const V = { welcome: vWelcome, welcome2: vEnfoques, home: vHome, train: vTrain, plan: vPlan, programa: vPrograma, phase: vPhase, progress: vProgress, settings: vSettings, summary: vSummary, premium: vPremium, descanso: vDescanso, exlist: vExList, exedit: vExEdit };
+  const V = { welcome: vWelcome, welcome2: vEnfoques, home: vHome, train: vTrain, plan: vPlan, programa: vPrograma, phase: vPhase, progress: vProgress, settings: vSettings, summary: vSummary, premium: vPremium, descanso: vDescanso, exlist: vExList, exedit: vExEdit, catview: vCatView };
   applyNeon();
   $('#app').innerHTML = (V[ui.view] || vHome)();
   const m = $('.main'); if (m) m.scrollTop = top;
+  document.querySelectorAll('.hscroll').forEach(h => { const on = h.querySelector('.chip.on'); if (on) h.scrollLeft = Math.max(0, on.offsetLeft - h.offsetLeft - (h.clientWidth - on.offsetWidth) / 2); });
   ui.keep = false;
   ensureTick();
   wake(ui.view === 'train');
@@ -560,7 +622,7 @@ function vEnfoques() {
 function vHome() {
   const p = activePhase();
   let b = '';
-  if (db.current) b += `<button class="card resume" data-a="go" data-v="train"><span class="eyebrow hl">Entreno en curso · ${elapsedText()}</span><span class="big">${esc(db.current.routineName)}</span><span class="muted">Toca para continuar</span></button>`;
+  if (db.current) b += `<button class="card resume" data-a="go" data-v="train"><span class="eyebrow hl">Entreno en curso · ${tState(db.current) === 'idle' ? 'sin iniciar' : elapsedText() + (tState(db.current) === 'pause' ? ' · en pausa' : '')}</span><span class="big">${esc(db.current.routineName)}</span><span class="muted">Toca para continuar</span></button>`;
   if (p) {
     const st = stats(p);
     b += `<button class="card" data-a="go" data-v="programa">
@@ -603,6 +665,7 @@ function vTrain() {
   const topHit = ex.repMax && e.eff.r >= ex.repMax;
   const dn = dayNum(c.routineId);
   let b = `<div class="segs" style="grid-template-columns:repeat(${n},1fr)">${c.entries.map((x, i) => `<i class="${i === c.idx ? 'cur' : x.eff.done ? 'ok' : ''}"></i>`).join('')}</div>
+  ${timerBar()}
   <h2 class="exname">${esc(e.name)}</h2>
   ${range || ex.notes ? `<div class="card notes">${range ? `<span class="eyebrow hl">Objetivo · ${range}</span>` : ''}${ex.notes ? `<span class="note-t">${esc(ex.notes)}</span>` : ''}</div>` : ''}
   <div class="card row-sb" style="flex-direction:row"><div class="col"><span class="eyebrow">La vez pasada${last ? ' · ' + fdate(last.date) : ''}</span><span class="num md">${last ? `${fmt(last.eff.w)} ${unitOf(last)} × ${last.eff.r} reps` : 'Sin registro'}</span>${last && last.eff.w > 0 ? `<span class="muted sm">≈ ${fmt(r1(conv(last.eff.w, unitOf(last), other(unitOf(last)))))} ${other(unitOf(last))}</span>` : ''}</div><span class="muted sm">${last && last.eff.tech && last.eff.tech !== 'Normal' ? esc(last.eff.tech) : 'serie al fallo'}</span></div>
@@ -620,8 +683,9 @@ function vTrain() {
   <button class="btn text danger" data-a="discard">Descartar entreno</button>`;
   const lastEx = c.idx === n - 1;
   const foot = `<button class="btn" data-a="prevEx" ${c.idx === 0 ? 'disabled' : ''}>Anterior</button><button class="btn acc" data-a="${lastEx ? 'finish' : 'nextEx'}">${lastEx ? 'Cerrar entreno' : 'Siguiente ejercicio'}</button>`;
-  const right = `<div class="clock" role="timer" aria-label="Tiempo de entrenamiento"><span class="eyebrow">Entreno</span><span class="num" id="clockT">${elapsedText()}</span></div>`;
-  return screen({ title: c.routineName, sub: `${dn ? 'Día ' + dn + ' · ' : ''}ejercicio ${c.idx + 1} de ${n}`, back: 'home', body: b, foot, right });
+  const st = tState(c);
+  const right = `<div class="clock ${st}" role="timer" aria-label="Tiempo de entrenamiento"><span class="eyebrow">${st === 'run' ? 'Entreno' : st === 'pause' ? 'En pausa' : 'Sin iniciar'}</span><span class="num" id="clockT">${elapsedText()}</span></div>`;
+  return screen({ title: c.routineName, sub: `${dn ? 'Día ' + dn + ' · ' : ''}ejercicio ${c.idx + 1} de ${n}`, back: 'home', backA: 'leaveTrain', body: b, foot, right });
 }
 
 function vSummary() {
@@ -664,7 +728,8 @@ function vPlan() {
       <button class="icon-btn" data-a="exMove" data-i="${i}" data-d="1" aria-label="Bajar" ${i === r.exercises.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
       <button class="icon-btn" data-a="exDel" data-i="${i}" aria-label="Eliminar ejercicio">${ICON.trash}</button></div></div></div>`).join('')
     : `<div class="card muted">Todavía no hay ejercicios. Agrega el primero abajo.</div>`;
-  b += `<div class="card"><label class="eyebrow" for="newex">Agregar ejercicio</label><input id="newex" class="inp" placeholder="Escribe o elige de tu lista" enterkeyhint="done" autocomplete="off" value="${esc(ui.q || '')}"><div id="sugg" class="col" style="gap:8px">${suggHtml(ui.q || '')}</div></div>
+  b += `<div class="card"><label class="eyebrow" for="newex">Agregar ejercicio</label><input id="newex" class="inp" placeholder="Escribe o elige de tu lista" enterkeyhint="done" autocomplete="off" value="${esc(ui.q || '')}"><div id="sugg" class="col" style="gap:8px">${suggHtml(ui.q || '')}</div>
+    <button class="btn ghost" data-a="openCat">Explorar catálogo · ${isPro() ? CATALOGO.length : CAT_BASIC} ejercicios</button></div>
   <button class="btn text danger" data-a="delRoutine">Eliminar día</button>`;
   return screen({ title: 'Planear día', sub: r.name, back: ui.planBack || 'home', body: b, foot: `<button class="btn acc lg full" data-a="train" data-id="${r.id}">${ICON.play} Entrenar este día</button>` });
 }
@@ -866,7 +931,7 @@ function chartRadar(items) {
   const G = RADAR.map(g => { const xs = items.filter(i => (i.x.group || 'Otro') === g); return { g, n: xs.length, v: xs.length ? Math.round(xs.reduce((a, i) => a + i.pct, 0) / xs.length) : 0 }; });
   if (!G.some(g => g.n)) return `<div class="muted sm">Asigna grupo muscular a tus ejercicios en Planear y registra al menos 2 sesiones.</div>`;
   const W = 320, H = 210, cx = 160, cy = 104, rad = 70, mx = Math.max(10, ...G.map(g => g.v)) * 1.15;
-  const pt = (k, s) => { const a = (-90 + 60 * k) * Math.PI / 180; return [cx + Math.cos(a) * rad * s, cy + Math.sin(a) * rad * s]; };
+  const pt = (k, s) => { const a = (-90 + 360 / RADAR.length * k) * Math.PI / 180; return [cx + Math.cos(a) * rad * s, cy + Math.sin(a) * rad * s]; };
   const ring = s => G.map((g, k) => { const p = pt(k, s); return (k ? 'L' : 'M') + r1(p[0]) + ' ' + r1(p[1]); }).join('') + 'Z';
   const minV = Math.min(...G.filter(g => g.n).map(g => g.v));
   let s = `<path d="${ring(1 / 3)}${ring(2 / 3)}${ring(1)}" fill="none" stroke="${C.grid}"/>`;
@@ -929,7 +994,7 @@ function vProgress() {
 
 /* ---------- premium ---------- */
 function vPremium() {
-  const rows = [['Registrar series, calentamientos y descanso', '✓', '✓'], ['Cronómetro y resumen del entreno', '✓', '✓'], ['Comparar con la vez pasada', '✓', '✓'], ['Días propios', String(FREE_DAYS), 'Sin límite'], ['Fases planeadas', '1', 'Sin límite'], ['Enfoques listos', '1', 'Los 6'], ['Descanso activo entre fases', '—', '✓'], ['Gráficas', 'Líneas, columnas, tabla', '+ barras, radar, dispersión'], ['Exportar a Excel', '—', '✓'], ['Respaldo y restaurar', '✓', '✓']];
+  const rows = [['Registrar series, calentamientos y descanso', '✓', '✓'], ['Cronómetro y resumen del entreno', '✓', '✓'], ['Comparar con la vez pasada', '✓', '✓'], ['Días propios', String(FREE_DAYS), 'Sin límite'], ['Fases planeadas', '1', 'Sin límite'], ['Enfoques listos', '1', 'Los 6'], ['Catálogo de ejercicios', `${CAT_BASIC} básicos`, `Los ${CATALOGO.length}`], ['Descanso activo entre fases', '—', '✓'], ['Gráficas', 'Líneas, columnas, tabla', '+ barras, radar, dispersión'], ['Exportar a Excel', '—', '✓'], ['Respaldo y restaurar', '✓', '✓']];
   let b = `<h2 class="exname" style="font-size:32px">Entrena el año completo, fase por fase</h2>
   <div class="card" style="padding:6px 14px;gap:0"><div class="ptr th"><span></span><span>Gratis</span><span class="hl">Premium</span></div>${rows.map(r => `<div class="ptr"><span>${r[0]}</span><span class="muted">${r[1]}</span><span class="hl">${r[2]}</span></div>`).join('')}</div>
   <div class="grid2">${[['mensual', 'Mensual', 'por mes'], ['anual', 'Anual', 'por año · ahorra [X]%']].map(([id, l, n]) => `<button class="card plan ${ui.plan === id ? 'on' : ''}" data-a="plan2" data-v="${id}" aria-pressed="${ui.plan === id}"><span class="eyebrow">${l}</span><span class="num" style="font-size:24px;font-weight:700">[PRECIO]</span><span class="muted sm">${n}</span></button>`).join('')}</div>
@@ -991,7 +1056,7 @@ function importFile(file) {
   const rd = new FileReader();
   rd.onload = () => {
     try {
-      const d = validate(JSON.parse(rd.result));
+      const d = fixCurrent(validate(JSON.parse(rd.result)));
       if (!d) throw new Error('formato');
       if (!confirm('Esto reemplaza los datos de esta app con el respaldo. ¿Continuar?')) return;
       db = d; save(); toast('Respaldo restaurado'); go('home');
@@ -1021,6 +1086,15 @@ const ACT = {
   useEx: d => { if (addExerciseToDay(routine(ui.planId), d.id)) { ui.q = ''; save(); toast('Agregado · comparte el historial'); rerender(); } },
   toggleAll: () => { ui.showAll = !ui.showAll; rerender(); },
   myEx: () => { ui.exq = ''; go('exlist'); },
+  openCat: () => { ui.cf = ui.cf || { g: 'Todos', e: 'Todo', q: '' }; go('catview'); },
+  cfG: d => { ui.cf.g = d.v; rerender(); },
+  cfE: d => { ui.cf.e = d.v; rerender(); },
+  useCat: d => {
+    const c = CATALOGO.find(x => x.n === d.n); if (!c) return;
+    if (!catAllowed(c)) return openPremium(ui.view);
+    if (!addCatToDay(c)) return;
+    ui.q = ''; save(); toast('Agregado: ' + c.n); rerender();
+  },
   exEdit: d => { const c = catalog().find(x => x.id === d.id); if (!c) return; ui.exEdit = c.id; ui.exForm = { name: c.name, group: c.group, unit: c.unit }; go('exedit'); },
   exfGroup: d => { ui.exForm.group = d.v; rerender(); },
   exfUnit: d => { ui.exForm.unit = d.v; rerender(); },
@@ -1065,11 +1139,19 @@ const ACT = {
     const e = cur(), t = d.s === 'e' ? e.eff : e.warm[+d.s], st = d.f === 'w' ? stepFor(unitOf(e)) : 1;
     t[d.f] = Math.max(0, Math.round((t[d.f] + st * +d.d) * 100) / 100); save(); rerender();
   },
-  toggleWarm: d => { const w = cur().warm[+d.k]; w.done = !w.done; if (w.done) startRest(db.settings.restWarm); save(); rerender(); },
+  toggleWarm: d => { const w = cur().warm[+d.k]; w.done = !w.done; if (w.done) { tStart(); startRest(db.settings.restWarm); } save(); rerender(); },
   addWarm: () => { const e = cur(); e.warm.push({ w: roundTo(e.eff.w * 0.75, stepFor(unitOf(e))), r: 6, done: false }); save(); rerender(); },
   delWarm: () => { cur().warm.length = 1; save(); rerender(); },
   tech: d => { cur().eff.tech = d.t; save(); rerender(); },
-  toggleEff: () => { const e = cur(); e.eff.done = !e.eff.done; if (e.eff.done) startRest(db.settings.restEff); save(); rerender(); },
+  toggleEff: () => { const e = cur(); e.eff.done = !e.eff.done; if (e.eff.done) { tStart(); startRest(db.settings.restEff); } save(); rerender(); },
+  tStart: () => { tStart(); save(); rerender(); },
+  tPause: () => { tPause(); save(); rerender(); },
+  tReset: () => { if (tElapsed(db.current) > 0 && !confirm('¿Reiniciar el cronómetro a 0:00? Tus series registradas se conservan.')) return; tReset(); save(); rerender(); },
+  leaveTrain: () => {
+    const c = db.current;
+    if (c && !anyDone(c) && tElapsed(c) === 0) { db.current = null; stopRest(); save(); toast('No registraste nada: el entreno se cerró sin guardar'); }
+    go('home');
+  },
   prevEx: () => { db.current.idx--; save(); go('train'); },
   nextEx: () => { db.current.idx++; save(); go('train'); },
   finish: finishTraining,
@@ -1161,6 +1243,7 @@ document.addEventListener('input', ev => {
   if (t.dataset.f === 'pname') ui.form.name = t.value;
   if (t.dataset.f === 'exfName') ui.exForm.name = t.value;
   if (t.id === 'newex') { ui.q = t.value; const s = $('#sugg'); if (s) s.innerHTML = suggHtml(ui.q); }
+  if (t.id === 'catq2') { ui.cf.q = t.value; const s = $('#catBody'); if (s) s.innerHTML = catViewBody(); }
   if (t.id === 'exq') { ui.exq = t.value; const s = $('#exlistBody'); if (s) s.innerHTML = exListBody(); }
 });
 function doMerge(dstId) {

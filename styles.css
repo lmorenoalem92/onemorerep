@@ -187,3 +187,13 @@ svg { flex-shrink: 0; }
 .chip.neon { display: inline-flex; align-items: center; gap: 8px; }
 .chip.neon i { width: 14px; height: 14px; border-radius: 7px; display: block; }
 .chip.neon.on { background: var(--card2); color: var(--tx); border-color: var(--acc); }
+
+/* --- V3: cronómetro y catálogo --- */
+.tbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--card); border-radius: 14px; padding: 8px 10px 8px 14px; }
+.tbar .btn { height: 44px; }
+.tbar.paused { background: var(--warm-bg); border: 1px solid var(--warm-bd); }
+.clock.idle .num, .clock.pause .num { color: var(--mu); }
+.hscroll { display: flex; gap: 8px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: none; }
+.hscroll::-webkit-scrollbar { display: none; }
+.hscroll .chip { flex-shrink: 0; height: 40px; }
+.sugg:disabled { opacity: 1; cursor: default; }
