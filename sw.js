@@ -1,6 +1,6 @@
 /* Guarda la app en el teléfono para que abra sin internet.
    Al publicar cambios, sube el número de versión (omr-V2, omr-V3... igual que la versión de la app). */
-const V = 'omr-V3';
+const V = 'omr-V4';
 const SHELL = ['./', 'index.html', 'styles.css', 'catalogo.js', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', e => {

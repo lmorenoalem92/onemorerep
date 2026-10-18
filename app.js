@@ -13,7 +13,7 @@ const GROUPS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', '
 const RADAR = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', 'Core'];
 const DEF_SETTINGS = { step: 2.5, stepLb: 5, restWarm: 60, restEff: 120 };
 const FREE_DAYS = 3;
-const APP_VER = 'V3';
+const APP_VER = 'V4';
 const C = { acc: '#C8FF2E', ok: '#4DD7FF', bad: '#F2A0A0', grid: '#2E2F34', mu: '#A3A3A8', tx: '#F4F1EC', card: '#1C1D20' };
 // Tonos neón: el color de "progresaste" (ok) cambia para no confundirse con el neón elegido
 const NEONS = [
@@ -227,6 +227,45 @@ const cur = () => db.current.entries[db.current.idx];
 const normName = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const STOP = new Set(['con', 'de', 'en', 'la', 'el', 'los', 'las', 'a', 'al', 'y', 'del', 'para', 'por']);
 const dupKey = s => normName(s).split(' ').filter(w => w && !STOP.has(w)).map(w => w.length > 3 ? w.replace(/(es|s)$/, '') : w).sort().join(' ');
+const GROUP_RULES = [
+  ['Hombro', /pec ?deck invers|apertura\w* invers|invers\w* .*apertura|pajaro|reverse fly/],
+  ['Pierna', /femoral|pierna|prensa|sentadilla|pantorrilla|gemelo|desplante|zancada|hip ?thrust|glute|aductor|abductor|rumano|rigida|cuadricep|extension de rodilla|hack|bulgara/],
+  ['Tríceps', /tricep|fondo|frances|patada|rompecraneo|copa/],
+  ['Hombro', /jalon a la cara|face ?pull|lateral|posterior|militar|hombro|deltoide|arnold|frontal|menton|press de hombro|pajaro/],
+  ['Espalda', /jalon|remo|dominada|peso muerto|espalda|hiperextension|encogimiento|pull ?over con polea|dorsal/],
+  ['Bíceps', /bicep|curl|martillo|predicador/],
+  ['Pecho', /pecho|banca|apertura|pec ?deck|cruce|inclinado|declinado|lagartija|pullover|pectoral|press de pecho/],
+  ['Core', /abdominal|crunch|plancha|core|oblicuo|rueda|elevacion de piernas/]
+];
+function guessGroup(name) {
+  const k = normName(name);
+  const c = CATALOGO.find(x => normName(x.n) === k);
+  if (c) return c.g;
+  const r = GROUP_RULES.find(([, re]) => re.test(k));
+  return r ? r[0] : 'Otro';
+}
+// Nombres que se fusionaron en otro ejercicio: así no se vuelven a crear ni a sugerir del catálogo
+const aliasesOf = id => ((db.settings.aliases || {})[id]) || [];
+// Índice de nombres propios (con alias) para búsquedas rápidas
+function ownIndex() {
+  const m = new Map();
+  catalog().forEach(c => { m.set(normName(c.name), c); aliasesOf(c.id).forEach(a => { if (!m.has(normName(a))) m.set(normName(a), c); }); });
+  return m;
+}
+function ownByName(n) {
+  const k = normName(n);
+  return catalog().find(c => normName(c.name) === k || aliasesOf(c.id).some(a => normName(a) === k)) || null;
+}
+// Asigna grupo a los ejercicios que no tienen, una sola vez
+function fillGroups() {
+  let ch = false;
+  db.routines.forEach(r => r.exercises.forEach(x => {
+    if (!x.group || !GROUPS.includes(x.group) || (x.group === 'Otro' && !db.settings.groupsV4)) { const g = guessGroup(x.name); if (g !== x.group) { x.group = g; ch = true; } }
+  }));
+  if (!db.settings.groupsV4) { db.settings.groupsV4 = true; ch = true; }
+  if (!db.settings.aliases) { db.settings.aliases = {}; ch = true; }
+  if (ch) save();
+}
 function catalog() {
   const map = new Map();
   db.routines.forEach(r => r.exercises.forEach(x => {
@@ -236,7 +275,7 @@ function catalog() {
   }));
   db.sessions.forEach(s => s.entries.forEach(e => {
     let c = map.get(e.exerciseId);
-    if (!c) { c = { id: e.exerciseId, name: e.name, group: 'Otro', unit: unitOf(e), days: [], n: 0, last: null }; map.set(e.exerciseId, c); }
+    if (!c) { c = { id: e.exerciseId, name: e.name, group: guessGroup(e.name), unit: unitOf(e), days: [], n: 0, last: null }; map.set(e.exerciseId, c); }
     c.n++; c.last = s.date;
   }));
   const all = [...map.values()], keys = {};
@@ -261,7 +300,13 @@ function addExerciseToDay(r, id) {
   return true;
 }
 function mergeExercise(srcId, dstId) {
-  const dst = catalog().find(c => c.id === dstId);
+  const cat = catalog(), dst = cat.find(c => c.id === dstId), src = cat.find(c => c.id === srcId);
+  const al = db.settings.aliases || (db.settings.aliases = {});
+  if (src && dst) {
+    al[dstId] = [...new Set([...(al[dstId] || []), src.name, ...(al[srcId] || [])])].filter(a => normName(a) !== normName(dst.name));
+    if (dst.group === 'Otro' && src.group !== 'Otro') { dst.group = src.group; setShared(dstId, { group: src.group }); }
+  }
+  delete al[srcId];
   const move = e => { if (e.exerciseId === srcId) { e.exerciseId = dstId; e.name = dst.name; } };
   db.sessions.forEach(s => s.entries.forEach(move));
   if (db.current) db.current.entries.forEach(move);
@@ -277,7 +322,7 @@ const catAllowed = c => c.b || isPro();
 const CAT_BASIC = CATALOGO.filter(c => c.b).length;
 function addCatToDay(c) {
   const r = routine(ui.planId); if (!r) return false;
-  const ex = catalog().find(x => normName(x.name) === normName(c.n));
+  const ex = ownByName(c.n);
   if (ex) return addExerciseToDay(r, ex.id);
   r.exercises.push({ id: uid(), name: c.n, group: c.g, unit: catUnit(c.e), equip: c.e, warmups: 1 });
   return true;
@@ -288,7 +333,9 @@ function catRow(c, inDay) {
 }
 function catViewBody() {
   const f = ui.cf, r = routine(ui.planId), q = normName(f.q || '');
-  const dayNames = new Set((r ? r.exercises : []).map(x => normName(x.name)));
+  const dayIds = new Set((r ? r.exercises : []).map(x => x.id));
+  const own = ownIndex();
+  const dayNames = { has: k => { const e = own.get(k); return !!(e && dayIds.has(e.id)); } };
   let list = CATALOGO.filter(c => (f.g === 'Todos' || c.g === f.g) && (f.e === 'Todo' || c.e === f.e) && (!q || normName(c.n).includes(q)));
   if (!isPro()) list = list.filter(c => c.b).concat(list.filter(c => !c.b));
   if (!list.length) return `<div class="card muted">Ningún ejercicio del catálogo coincide. Puedes crearlo tú desde Planear día.</div>`;
@@ -312,26 +359,29 @@ function suggHtml(q) {
   const r = routine(ui.planId); if (!r) return '';
   const nq = normName(q), all = catalog(), inDay = new Set(r.exercises.map(x => x.id));
   const cat = all.filter(c => !inDay.has(c.id));
-  const list = nq ? cat.filter(c => normName(c.name).includes(nq) || dupKey(c.name) === dupKey(q)).slice(0, 6) : (ui.showAll ? cat : []);
-  const exact = all.find(c => normName(c.name) === nq);
+  const list = nq ? cat.filter(c => normName(c.name).includes(nq) || aliasesOf(c.id).some(a => normName(a).includes(nq))).slice(0, 6) : (ui.showAll ? cat : []);
+  const exact = nq ? ownByName(q) : null;
   let h = '';
   if (list.length) h += `<span class="eyebrow">${nq ? 'Ya los tienes · se comparte el historial' : 'Tus ejercicios'}</span>` + list.map(c => `<button class="sugg" data-a="useEx" data-id="${c.id}"><span class="col"><span style="font-weight:600">${esc(c.name)}</span><span class="muted sm">${esc(c.group)} · ${esc(catInfo(c))}</span></span><span class="use">Usar</span></button>`).join('');
-  const have = new Set(all.map(c => normName(c.name)));
-  const cm = nq ? CATALOGO.filter(c => !have.has(normName(c.n)) && normName(c.n).includes(nq)).sort((a, b) => catAllowed(b) - catAllowed(a)).slice(0, 6) : [];
+  const own = ownIndex();
+  const cm = nq ? CATALOGO.filter(c => !own.has(normName(c.n)) && normName(c.n).includes(nq)).sort((a, b) => catAllowed(b) - catAllowed(a)).slice(0, 6) : [];
   if (cm.length) h += `<span class="eyebrow">Del catálogo</span>` + cm.map(c => catRow(c, false)).join('');
   if (nq && !exact && !list.length && !cm.length) h += `<span class="muted sm">No hay ningún ejercicio con ese nombre.</span>`;
   const catExact = CATALOGO.find(c => normName(c.n) === nq && catAllowed(c));
-  if (nq && !exact && !catExact) h += `<button class="btn dashed" data-a="exAdd">+ Crear nuevo: “${esc(q.trim())}”</button>`;
+  if (nq && !exact && !catExact) {
+    const g = ui.ng || guessGroup(q);
+    h += `<div class="card" style="background:var(--card2);gap:8px"><span class="eyebrow">Ejercicio nuevo · ¿qué grupo trabaja?</span>
+      <div class="chips" role="group" aria-label="Grupo muscular">${GROUPS.map(x => `<button class="chip ${g === x ? 'on' : ''}" data-a="ngPick" data-v="${x}" aria-pressed="${g === x}" style="height:40px">${x}</button>`).join('')}</div>
+      <button class="btn acc" data-a="exAdd">+ Crear “${esc(q.trim())}” en ${esc(g)}</button></div>`;
+  }
   if (exact && inDay.has(exact.id)) h += `<span class="muted sm">“${esc(exact.name)}” ya está en este día.</span>`;
-  const twin = nq && !exact && all.find(c => inDay.has(c.id) && dupKey(c.name) === dupKey(q));
-  if (twin) h += `<span class="muted sm">Se parece a “${esc(twin.name)}”, que ya está en este día.</span>`;
   if (!nq) h += `<button class="btn text" data-a="toggleAll">${ui.showAll ? 'Ocultar mi lista' : 'Ver todos mis ejercicios'}</button>`;
   return h;
 }
 function exListBody() {
   const cat = catalog(), q = normName(ui.exq || '');
-  const list = q ? cat.filter(c => normName(c.name).includes(q)) : cat;
-  const row = c => `<button class="card rrow" data-a="exEdit" data-id="${c.id}"><div class="col"><span style="font-weight:600;font-size:16px">${esc(c.name)}</span><span class="muted sm">${esc(catInfo(c))}</span></div><span class="row">${c.dups.length ? '<span class="tag-dup">¿DUPLICADO?</span>' : ''}${ICON.chev}</span></button>`;
+  const list = q ? cat.filter(c => normName(c.name).includes(q) || normName(c.group).includes(q) || aliasesOf(c.id).some(a => normName(a).includes(q))) : cat;
+  const row = c => `<button class="card rrow" data-a="exEdit" data-id="${c.id}"><div class="col"><span style="font-weight:600;font-size:16px">${esc(c.name)}</span><span class="muted sm">${esc(catInfo(c))}</span></div>${ICON.chev}</button>`;
   const used = list.filter(c => c.days.length), unused = list.filter(c => !c.days.length);
   let b = '';
   GROUPS.forEach(g => { const xs = used.filter(c => c.group === g); if (xs.length) b += `<span class="eyebrow mt">${g}</span>` + xs.map(row).join(''); });
@@ -340,9 +390,7 @@ function exListBody() {
   return b;
 }
 function vExList() {
-  const dupN = catalog().filter(c => c.dups.length).length;
-  let b = `<input id="exq" class="inp" placeholder="Buscar ejercicio" value="${esc(ui.exq || '')}" aria-label="Buscar ejercicio" autocomplete="off">`;
-  if (dupN) b += `<div class="card notes"><span style="font-weight:700">${dupN} posibles duplicados</span><span class="note-t sm">Nombres muy parecidos con historial separado. Ábrelos para combinarlos en uno.</span></div>`;
+  let b = `<input id="exq" class="inp" placeholder="Buscar ejercicio o grupo" value="${esc(ui.exq || '')}" aria-label="Buscar ejercicio" autocomplete="off">`;
   b += `<div id="exlistBody" class="col" style="gap:12px">${exListBody()}</div>`;
   return screen({ title: 'Mis ejercicios', sub: 'Ajustes', back: 'settings', body: b });
 }
@@ -354,14 +402,14 @@ function vExEdit() {
     <span class="eyebrow">Grupo muscular</span><div class="chips">${GROUPS.map(g => `<button class="chip ${f.group === g ? 'on' : ''}" data-a="exfGroup" data-v="${g}">${g}</button>`).join('')}</div>
     <div class="seg"><span class="muted sm" style="flex:1">Unidad</span><button class="chip ${f.unit === 'kg' ? 'on' : ''}" data-a="exfUnit" data-v="kg">kg</button><button class="chip ${f.unit === 'lb' ? 'on' : ''}" data-a="exfUnit" data-v="lb">lb</button></div></div>
   <div class="card"><span class="eyebrow">Se usa en</span><span style="font-weight:600">${c.days.length ? esc(c.days.join(', ')) : 'Ningún día'}</span><span class="muted sm">${c.n ? `${c.n} ${c.n === 1 ? 'sesión' : 'sesiones'} · última el ${fdate(c.last)}` : 'Sin sesiones registradas'}</span></div>`;
-  const others = cat.filter(x => x.id !== c.id);
-  const sug = c.dups.map(id => cat.find(x => x.id === id)).filter(Boolean)[0];
-  if (others.length) {
-    b += `<div class="card notes">${sug ? `<span style="font-weight:700">¿Es el mismo que “${esc(sug.name)}”?</span><span class="note-t sm">Al combinarlos queda uno solo: ${c.n ? `las ${c.n} sesiones de aquí se suman a las ${sug.n} de “${esc(sug.name)}”` : `este se reemplaza por “${esc(sug.name)}”`} en una misma gráfica.</span><button class="btn acc" data-a="exMerge" data-id="${sug.id}">Combinar con “${esc(sug.name)}”</button>`
-      : `<span style="font-weight:700">Combinar con otro ejercicio</span><span class="note-t sm">Si es el mismo ejercicio con otro nombre, junta sus sesiones en una sola gráfica.</span>`}
-      <label class="sr" for="mergeSel">Ejercicio con el que combinar</label><select id="mergeSel" class="inp sel big-sel"><option value="">Elegir ${sug ? 'otro ' : ''}ejercicio…</option>${others.map(o => `<option value="${o.id}">${esc(o.name)} (${o.n} ses.)</option>`).join('')}</select>
-      <button class="btn" data-a="exMergeSel">Combinar con el elegido</button></div>`;
-  }
+  const al = aliasesOf(c.id);
+  if (al.length) b += `<div class="card"><span class="eyebrow">También llamado</span><span class="sm" style="color:#C9C7C2">${esc(al.join(', '))}</span><span class="muted sm">Nombres que se fusionaron aquí. Si los escribes, te lleva a este ejercicio.</span></div>`;
+  const g = f.group, others = cat.filter(x => x.id !== c.id && x.group === g);
+  if (!ui.mergeOpen) b += `<button class="btn text" data-a="mergeOpen" style="height:44px">¿Lo diste de alta dos veces? Fusionar</button>`;
+  else b += `<div class="card"><div class="row-sb"><span class="eyebrow">Fusionar con otro de ${esc(g)}</span><button class="btn text" style="height:36px;padding:0 4px" data-a="mergeOpen">Cerrar</button></div>
+      <span class="sm" style="color:#C9C7C2">Úsalo solo si es el mismo ejercicio escrito dos veces. El historial se junta y se conserva el nombre del que elijas. No se puede deshacer.</span>
+      ${others.length ? `<label class="sr" for="mergeSel">Ejercicio con el que se fusiona</label><select id="mergeSel" class="inp sel big-sel"><option value="">Elegir ejercicio…</option>${others.map(o => `<option value="${o.id}">${esc(o.name)} (${o.n} ses.)</option>`).join('')}</select>
+      <button class="btn ghost" data-a="exMergeSel">Fusionar con el seleccionado</button>` : `<span class="sm">No tienes otros ejercicios de ${esc(g)}.</span>`}</div>`;
   b += `<button class="btn text danger" data-a="exRemove" ${c.n ? 'disabled' : ''}>${c.n ? 'No se puede eliminar: tiene sesiones' : 'Eliminar ejercicio'}</button>`;
   return screen({ title: 'Editar ejercicio', sub: 'Mis ejercicios', back: 'exlist', body: b, foot: `<button class="btn acc lg full" data-a="exSave">Guardar cambios</button>` });
 }
@@ -711,6 +759,7 @@ function vPlan() {
   <span class="eyebrow mt">Ejercicios, en orden</span>`;
   b += r.exercises.length ? r.exercises.map((x, i) => `<div class="card">
     <div class="row"><span class="badge">${i + 1}</span><input class="inp" value="${esc(x.name)}" data-f="exname" data-i="${i}" aria-label="Nombre del ejercicio ${i + 1}"></div>
+    ${(() => { const ds = db.routines.filter(d => d.id !== r.id && d.exercises.some(y => y.id === x.id)); return ds.length ? `<div class="row-sb" style="background:var(--warm-bg);border:1px solid var(--warm-bd);border-radius:12px;padding:6px 6px 6px 12px"><span class="sm" style="color:var(--note-tx)">Compartido con ${esc(ds.map(d => d.name).join(', '))}: si lo renombras cambia allá también</span><button class="btn hl-t" style="height:40px;flex-shrink:0" data-a="sepEx" data-i="${i}">Separar</button></div>` : ''; })()}
     <div class="row"><span class="muted sm" style="flex:1">Reps objetivo</span>
       <input class="inp mini" type="number" inputmode="numeric" min="0" placeholder="mín" value="${x.repMin || ''}" data-f="repMin" data-i="${i}" aria-label="Reps mínimas">
       <span class="muted">a</span>
@@ -1018,7 +1067,9 @@ function vSettings() {
   <div class="card"><span class="eyebrow">Tus datos</span><span class="muted sm">Se guardan solo en este teléfono. Haz respaldo de vez en cuando.</span>
     <button class="btn acc" data-a="exportCsv">Exportar a Excel (.csv)${isPro() ? '' : ' ' + ICON.lock}</button>
     <button class="btn" data-a="backup">Descargar respaldo</button>
-    <button class="btn" data-a="importBtn">Restaurar respaldo</button></div>
+    <button class="btn" data-a="importBtn">Restaurar respaldo (.json)</button>
+    <button class="btn" data-a="csvBtn">Cargar Excel corregido (.csv)${isPro() ? '' : ' ' + ICON.lock}</button>
+    <span class="muted sm">Respaldo = archivo .json de “Descargar respaldo” (también acepta el de HD). Excel corregido = el .csv que exportaste, editado en Excel; no borres la columna ID.</span></div>
   <div class="card"><span class="eyebrow">Pruebas</span><span class="muted sm">Herramientas solo para esta versión de prueba.</span>
     <button class="btn" data-a="demo">Cargar datos de ejemplo</button>
     <button class="btn" data-a="restart">Ver la bienvenida otra vez</button></div>
@@ -1038,31 +1089,213 @@ const fileSlug = BRAND.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').re
 function exportCsv() {
   if (needPro('settings')) return;
   if (!db.sessions.length) return toast('Todavía no hay entrenos registrados');
-  const rows = [['Fecha', 'Programa', 'Fase', 'Día', 'Ejercicio', 'Grupo', 'Serie', 'Peso', 'Unidad', 'Reps', 'Técnica', 'Duración entreno (min)']];
-  db.sessions.forEach(s => {
+  const rows = [CSV_HEAD.slice()];
+  const cat = catalog();
+  db.sessions.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(s => {
     const pn = (phaseById(s.programId) || {}).name || '';
     const dm = s.durationSec ? Math.round(s.durationSec / 60) : '';
-    s.entries.forEach(e => {
-      const g = (exById(e.exerciseId) || {}).group || '';
-      (e.warm || []).forEach((w, k) => rows.push([s.date, db.programName || '', pn, s.routineName, e.name, g, 'Calentamiento ' + (k + 1), w.w, unitOf(e), w.r, '', dm]));
-      rows.push([s.date, db.programName || '', pn, s.routineName, e.name, g, 'Efectiva', e.eff.w, unitOf(e), e.eff.r, e.eff.tech || '', dm]);
+    const dn = (routine(s.routineId) || {}).name || s.routineName || '';
+    s.entries.forEach((e, i) => {
+      const g = (cat.find(c => c.id === e.exerciseId) || {}).group || '';
+      (e.warm || []).forEach((w, k) => rows.push([s.date, db.programName || '', pn, dn, e.name, g, 'Calentamiento ' + (k + 1), w.w, unitOf(e), w.r, '', dm, `OMR|${s.id}|${i}|C${k}`]));
+      rows.push([s.date, db.programName || '', pn, dn, e.name, g, 'Efectiva', e.eff.w, unitOf(e), e.eff.r, e.eff.tech || '', dm, `OMR|${s.id}|${i}|E`]);
     });
   });
   const csv = '﻿' + rows.map(r => r.map(c => { const v = String(c); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',')).join('\r\n');
   download(csv, 'text/csv;charset=utf-8', `${fileSlug}-entrenos-${todayISO()}.csv`);
 }
-function importFile(file) {
-  if (!file) return;
+const CSV_HEAD = ['Fecha', 'Programa', 'Fase', 'Día', 'Ejercicio', 'Grupo', 'Serie', 'Peso', 'Unidad', 'Reps', 'Técnica', 'Duración entreno (min)', 'ID (no modificar)'];
+// Lee el archivo como texto (UTF-8, o Windows-1252 si Excel lo guardó así)
+function readText(file, cb) {
   const rd = new FileReader();
   rd.onload = () => {
-    try {
-      const d = fixCurrent(validate(JSON.parse(rd.result)));
-      if (!d) throw new Error('formato');
-      if (!confirm('Esto reemplaza los datos de esta app con el respaldo. ¿Continuar?')) return;
-      db = d; save(); toast('Respaldo restaurado'); go('home');
-    } catch (e) { toast('Ese archivo no es un respaldo válido'); }
+    let text = new TextDecoder('utf-8').decode(rd.result);
+    if (text.includes('�')) { try { text = new TextDecoder('windows-1252').decode(rd.result); } catch (e) { /* se queda en UTF-8 */ } }
+    cb(text.replace(/^﻿/, ''));
   };
-  rd.readAsText(file);
+  rd.onerror = () => toast('No pude abrir ese archivo');
+  rd.readAsArrayBuffer(file);
+}
+// Convierte un respaldo de la app personal (HD v3) al formato de One More Rep
+function fromHD(d) {
+  if (!d || !Array.isArray(d.exercises) || !Array.isArray(d.routines) || !Array.isArray(d.sessions)) return null;
+  const meta = {}; d.exercises.forEach(e => { meta[e.id] = e; });
+  const out = seed();
+  out.onboarded = true; out.premium = db.premium; out.programName = d.programName || 'Mi programa';
+  out.routines = d.routines.map(r => ({ id: r.id, name: r.name, exercises: r.exercises.map(x => { const m = meta[x.id] || {}; return { id: x.id, name: m.name || 'Ejercicio', group: GROUPS.includes(m.group) ? m.group : guessGroup(m.name || ''), unit: m.unit || 'kg', warmups: x.warmups || 1, repMin: x.repMin || null, repMax: x.repMax || null, notes: x.notes || '' }; }) }));
+  out.programs = (d.programs || []).map(p => Object.assign({ restAfter: false }, p));
+  out.sessions = d.sessions.map(s => Object.assign({}, s, { entries: s.entries.map(e => Object.assign({}, e, { name: (meta[e.exerciseId] || {}).name || e.name })) }));
+  out.settings = Object.assign({}, out.settings, { step: (d.settings || {}).step || 2.5, stepLb: (d.settings || {}).stepLb || 5, restWarm: (d.settings || {}).restWarm || 60, restEff: (d.settings || {}).restEff || 120, neon: db.settings.neon, aliases: {} });
+  d.exercises.forEach(e => { if ((e.aliases || []).length) out.settings.aliases[e.id] = e.aliases.slice(); });
+  return out;
+}
+// "Restaurar respaldo": acepta el .json de One More Rep o de HD; si eligen un .csv, lo manda a "Excel corregido"
+function importFile(file) {
+  if (!file) return;
+  readText(file, text => {
+    const t = text.trim();
+    if (!t.startsWith('{')) {
+      if (/\.csv$/i.test(file.name) || t.includes(',') || t.includes(';')) {
+        if (!confirm('Ese archivo es un Excel (.csv), no un respaldo.\n\nEl respaldo es el archivo .json de “Descargar respaldo”. ¿Quieres cargar este .csv como Excel corregido?')) return;
+        return importCsvText(text);
+      }
+      return toast('Ese archivo no es un respaldo. Usa el .json de “Descargar respaldo”.');
+    }
+    let raw;
+    try { raw = JSON.parse(t); } catch (e) { return toast('El archivo está dañado o incompleto: no se pudo leer'); }
+    let d = fixCurrent(validate(raw)), from = 'One More Rep';
+    if (!d && raw && raw.v === 3 && Array.isArray(raw.exercises)) { d = fixCurrent(fromHD(raw)); from = 'HD (tu app personal)'; }
+    if (!d) return toast(raw && raw.v && raw.v < 3 ? 'Es un respaldo de HD muy viejo: ábrelo primero en HD y vuelve a descargarlo' : 'Ese archivo no es un respaldo válido');
+    if (!confirm(`Respaldo de ${from}: ${d.sessions.length} entrenos, ${d.routines.length} días.\n\nEsto reemplaza los datos de esta app. ¿Continuar?`)) return;
+    db = d; fillGroups(); save(); toast('Respaldo restaurado'); go('home');
+  });
+}
+function parseCsv(text) {
+  const first = text.split(/\r?\n/)[0] || '';
+  const sep = (first.split(';').length > first.split(',').length) ? ';' : ',';
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === sep) { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => String(x).trim() !== ''));
+}
+const csvNum = v => { const t = String(v == null ? '' : v).trim().replace(/\s/g, ''); if (t === '') return null; const n = parseFloat(t.replace(',', '.')); return isFinite(n) ? n : null; };
+function csvDate(v) {
+  const t = String(v || '').trim(); let m;
+  if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${pad2(+m[2])}-${pad2(+m[3])}`;
+  if ((m = t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/))) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return `${y}-${pad2(+m[2])}-${pad2(+m[1])}`; }
+  return null;
+}
+const routineByName = name => { const k = normName(name); return db.routines.find(r => normName(r.name) === k) || null; };
+// Lee el Excel corregido y arma la lista de cambios, sin aplicarlos todavía
+function planCsvImport(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) throw new Error('El archivo está vacío');
+  const head = rows[0].map(h => normName(h));
+  const col = name => head.indexOf(normName(name));
+  const ci = { date: col('Fecha'), day: col('Día'), ex: col('Ejercicio'), w: col('Peso'), u: col('Unidad'), r: col('Reps'), t: col('Técnica'), id: head.findIndex(h => h.startsWith('id')) };
+  if (ci.id < 0 || ci.ex < 0) throw new Error('No encuentro la columna “ID (no modificar)”. Exporta de nuevo con One More Rep V4 o más nueva y edita ese archivo.');
+  const ses = {}; db.sessions.forEach(x => { ses[x.id] = x; });
+  const P = { rows: 0, skipped: 0, foreign: 0, sets: [], entries: {}, sessions: {}, newEx: new Set(), newDays: new Set() };
+  rows.slice(1).forEach(r => {
+    const id = String(r[ci.id] || '').trim().split('|');
+    if (id[0] === 'HD') { P.foreign++; return; }
+    if (id[0] !== 'OMR' || !ses[id[1]] || !ses[id[1]].entries[+id[2]]) { P.skipped++; return; }
+    const s = ses[id[1]], ei = +id[2], e = s.entries[ei], k = id[3];
+    const tgt = k === 'E' ? e.eff : (e.warm || [])[+String(k).slice(1)];
+    if (!tgt) { P.skipped++; return; }
+    P.rows++;
+    const g = v => ci[v] >= 0 ? String(r[ci[v]] == null ? '' : r[ci[v]]).trim() : '';
+    const w = csvNum(g('w')), rp = csvNum(g('r'));
+    if (w != null && w !== tgt.w) P.sets.push({ tgt, f: 'w', v: w });
+    if (rp != null && Math.round(rp) !== tgt.r) P.sets.push({ tgt, f: 'r', v: Math.round(rp) });
+    if (k === 'E' && ci.t >= 0 && g('t') && g('t') !== (tgt.tech || '')) P.sets.push({ tgt, f: 'tech', v: g('t') });
+    const ek = s.id + '|' + ei, en = P.entries[ek] || (P.entries[ek] = { s, e, name: null, unit: null, uE: null, uW: null });
+    const nm = g('ex'), u = g('u').toLowerCase();
+    if (nm && normName(nm) !== normName(e.name) && (k === 'E' || !en.name)) en.name = nm;
+    if (u === 'kg' || u === 'lb') { if (k === 'E') en.uE = u; else if (!en.uW || u !== unitOf(e)) en.uW = u; }
+    const sx = P.sessions[s.id] || (P.sessions[s.id] = { s, day: null, date: null });
+    const dn = g('day'), cur = (routine(s.routineId) || {}).name || s.routineName || '';
+    if (dn && normName(dn) !== normName(cur) && !sx.day) sx.day = dn;
+    const dt = ci.date >= 0 ? csvDate(g('date')) : null;
+    if (dt && dt !== s.date && !sx.date) sx.date = dt;
+  });
+  Object.values(P.entries).forEach(x => { const u = x.uE || x.uW; x.unit = u && u !== unitOf(x.e) ? u : null; if (x.name && !ownByName(x.name)) P.newEx.add(x.name.trim()); });
+  Object.values(P.sessions).forEach(x => { if (x.day && !routineByName(x.day)) P.newDays.add(x.day.trim()); });
+  P.exCount = Object.values(P.entries).filter(x => x.name).length;
+  P.unitCount = Object.values(P.entries).filter(x => x.unit).length;
+  P.dayCount = Object.values(P.sessions).filter(x => x.day).length;
+  P.dateCount = Object.values(P.sessions).filter(x => x.date).length;
+  P.total = P.sets.length + P.exCount + P.unitCount + P.dayCount + P.dateCount;
+  return P;
+}
+function applyCsvImport(P) {
+  P.sets.forEach(c => { c.tgt[c.f] = c.v; });
+  Object.values(P.entries).forEach(x => { if (x.unit) x.e.unit = x.unit; });
+  Object.values(P.sessions).forEach(x => {
+    if (x.date) x.s.date = x.date;
+    if (!x.day) return;
+    let r = routineByName(x.day);
+    if (!r) {
+      r = { id: uid(), name: x.day.trim(), exercises: [], fromCsv: true }; db.routines.push(r);
+      const ph = phaseById(x.s.programId) || activePhase(); if (ph && !ph.routineIds.includes(r.id)) ph.routineIds.push(r.id);
+    }
+    x.s.routineId = r.id; x.s.routineName = r.name;
+  });
+  const cat = catalog(), moves = {};
+  Object.values(P.entries).forEach(x => {
+    if (!x.name) return;
+    const old = cat.find(c => c.id === x.e.exerciseId) || { group: 'Otro', unit: unitOf(x.e) };
+    const dst = ownByName(x.name);
+    const to = dst ? { id: dst.id, name: dst.name, group: dst.group, unit: dst.unit } : { id: uid(), name: x.name.trim(), group: old.group !== 'Otro' ? old.group : guessGroup(x.name), unit: x.e.unit || old.unit };
+    const key = x.s.routineId + '|' + x.e.exerciseId + '|' + to.id;
+    moves[key] = moves[key] || { rid: x.s.routineId, from: x.e.exerciseId, to };
+    x.e.exerciseId = to.id; x.e.name = to.name;
+  });
+  // días nuevos: su plan se arma con los ejercicios de los entrenos que se movieron ahí
+  db.routines.filter(r => r.fromCsv).forEach(r => {
+    delete r.fromCsv;
+    db.sessions.filter(s => s.routineId === r.id).forEach(s => s.entries.forEach(e => {
+      if (r.exercises.some(x => x.id === e.exerciseId)) return;
+      const c = catalog().find(z => z.id === e.exerciseId) || { name: e.name, group: guessGroup(e.name), unit: unitOf(e) };
+      r.exercises.push({ id: e.exerciseId, name: c.name, group: c.group, unit: c.unit, warmups: Math.max(1, Math.min(2, (e.warm || []).length || 1)) });
+    }));
+  });
+  // si en un día ya no quedan registros del ejercicio viejo, el plan del día pasa al nuevo
+  let planSwaps = 0;
+  Object.values(moves).forEach(m => {
+    const r = routine(m.rid); if (!r) return;
+    const stillOld = db.sessions.some(s => s.routineId === m.rid && s.entries.some(e => e.exerciseId === m.from));
+    const slot = r.exercises.find(x => x.id === m.from);
+    if (slot && !stillOld && !r.exercises.some(x => x.id === m.to.id)) { Object.assign(slot, { id: m.to.id, name: m.to.name, group: m.to.group, unit: m.to.unit }); planSwaps++; }
+  });
+  return planSwaps;
+}
+function importCsvText(text) {
+  if (needPro('settings')) return;
+  let P;
+  try { P = planCsvImport(text); } catch (e) { return toast(e.message || 'No pude leer ese archivo'); }
+  if (!P.total) return toast(P.foreign && !P.rows ? 'Ese Excel es de HD, no de One More Rep' : P.rows ? 'No encontré cambios en el archivo' : 'Ese archivo no tiene registros de One More Rep');
+  const lines = [];
+  if (P.exCount) lines.push(`• ${P.exCount} ejercicio(s) cambiados de nombre o reasignados`);
+  if (P.sets.length) lines.push(`• ${P.sets.length} dato(s) de peso, reps o técnica`);
+  if (P.unitCount) lines.push(`• ${P.unitCount} cambio(s) de unidad`);
+  if (P.dayCount) lines.push(`• ${P.dayCount} entreno(s) movidos a otro día`);
+  if (P.dateCount) lines.push(`• ${P.dateCount} fecha(s)`);
+  if (P.newEx.size) lines.push(`\nEjercicios nuevos: ${[...P.newEx].join(', ')}`);
+  if (P.newDays.size) lines.push(`Días nuevos: ${[...P.newDays].join(', ')}`);
+  if (P.skipped) lines.push(`\n(${P.skipped} fila(s) sin ID válido se ignoran)`);
+  if (!confirm(`Cambios encontrados:\n${lines.join('\n')}\n\nAntes de aplicar se descarga un respaldo automático. ¿Aplicar?`)) return;
+  download(JSON.stringify(db, null, 1), 'application/json', `${fileSlug}-respaldo-antes-de-excel-${todayISO()}.json`);
+  const swaps = applyCsvImport(P); fillGroups(); save();
+  go('settings'); toast(`Listo: ${P.total} cambio(s) aplicados${swaps ? ` · ${swaps} día(s) actualizados` : ''}`);
+}
+// Separar: el ejercicio compartido queda solo en este día con otro nombre
+function separateExercise(i) {
+  const r = routine(ui.planId); if (!r) return;
+  const slot = r.exercises[i]; if (!slot) return;
+  const others = db.routines.filter(d => d.id !== r.id && d.exercises.some(x => x.id === slot.id));
+  const mine = db.sessions.filter(s => s.routineId === r.id).reduce((a, s) => a + s.entries.filter(e => e.exerciseId === slot.id).length, 0);
+  const v = prompt(`¿Cómo se llama el ejercicio de ${r.name}?\n\n${others.map(d => d.name).join(', ')} se queda con “${slot.name}”. Los ${mine} registro(s) que hiciste en ${r.name} pasan al nuevo.`, slot.name + ' (' + r.name + ')');
+  if (v === null) return;
+  const name = v.trim();
+  if (!name) return toast('Escribe un nombre');
+  if (normName(name) === normName(slot.name)) return toast('Usa un nombre distinto al de ' + others.map(d => d.name).join(', '));
+  const dst = ownByName(name);
+  if (dst && r.exercises.some(x => x.id === dst.id)) return toast(`“${dst.name}” ya está en este día`);
+  if (dst && !confirm(`Ya tienes “${dst.name}”. ¿Usar ese para ${r.name}? Su historial se juntará con estos ${mine} registro(s).`)) return;
+  const oldId = slot.id, to = dst ? { id: dst.id, name: dst.name, group: dst.group, unit: dst.unit } : { id: uid(), name, group: slot.group, unit: unitOf(slot) };
+  Object.assign(slot, to);
+  const mv = e => { if (e.exerciseId === oldId) { e.exerciseId = to.id; e.name = to.name; } };
+  db.sessions.forEach(s => { if (s.routineId === r.id) s.entries.forEach(mv); });
+  if (db.current && db.current.routineId === r.id) db.current.entries.forEach(mv);
+  save(); rerender(); toast(`Separado: “${to.name}” solo en ${r.name} · ${mine} registro(s)`);
 }
 
 /* ---------- acciones ---------- */
@@ -1095,14 +1328,18 @@ const ACT = {
     if (!addCatToDay(c)) return;
     ui.q = ''; save(); toast('Agregado: ' + c.n); rerender();
   },
-  exEdit: d => { const c = catalog().find(x => x.id === d.id); if (!c) return; ui.exEdit = c.id; ui.exForm = { name: c.name, group: c.group, unit: c.unit }; go('exedit'); },
-  exfGroup: d => { ui.exForm.group = d.v; rerender(); },
+  exEdit: d => { const c = catalog().find(x => x.id === d.id); if (!c) return; ui.mergeOpen = false; ui.exEdit = c.id; ui.exForm = { name: c.name, group: c.group, unit: c.unit }; go('exedit'); },
+  exfGroup: d => { ui.exForm.group = d.v; ui.mergeOpen = false; rerender(); },
+  mergeOpen: () => { ui.mergeOpen = !ui.mergeOpen; rerender(); },
+  ngPick: d => { ui.ng = d.v; const s = $('#sugg'); if (s) s.innerHTML = suggHtml(ui.q || ''); },
+  sepEx: d => separateExercise(+d.i),
+  csvBtn: () => { if (needPro('settings')) return; $('#csvFile').click(); },
   exfUnit: d => { ui.exForm.unit = d.v; rerender(); },
   exSave: () => {
     const f = ui.exForm, name = (f.name || '').trim();
     if (!name) return toast('Ponle nombre al ejercicio');
-    const clash = catalog().find(c => c.id !== ui.exEdit && normName(c.name) === normName(name));
-    if (clash) return toast(`Ya existe “${clash.name}”. Si es el mismo, combínalos.`);
+    const clash = ownByName(name);
+    if (clash && clash.id !== ui.exEdit) return toast(`Ya existe “${clash.name}”. Si es el mismo, fusiónalos.`);
     setShared(ui.exEdit, { name, group: f.group, unit: f.unit }); save(); toast('Ejercicio actualizado'); go('exlist');
   },
   exMerge: d => doMerge(d.id),
@@ -1173,10 +1410,10 @@ const ACT = {
   exAdd: () => {
     const inp = $('#newex'), v = (inp ? inp.value : ui.q || '').trim();
     if (!v) return toast('Escribe el nombre del ejercicio');
-    const r = routine(ui.planId), same = catalog().find(c => normName(c.name) === normName(v));
+    const r = routine(ui.planId), same = ownByName(v);
     if (same) { if (!addExerciseToDay(r, same.id)) return; toast(`Ya existía “${same.name}”: se usa el mismo historial`); }
-    else r.exercises.push({ id: uid(), name: v, warmups: 1, group: 'Otro' });
-    ui.q = ''; save(); rerender();
+    else { const g = ui.ng || guessGroup(v); r.exercises.push({ id: uid(), name: v, warmups: 1, group: g, unit: 'kg' }); toast(`Creado en ${g}: ${v}`); }
+    ui.q = ''; ui.ng = null; save(); rerender();
     const n = $('#newex'); if (n) n.focus();
   },
   delRoutine: () => {
@@ -1218,6 +1455,7 @@ document.addEventListener('click', ev => {
 document.addEventListener('change', ev => {
   const t = ev.target, f = t.dataset.f;
   if (t.id === 'importFile') { importFile(t.files[0]); t.value = ''; return; }
+  if (t.id === 'csvFile') { const fl = t.files[0]; t.value = ''; if (fl) readText(fl, importCsvText); return; }
   if (ui.view === 'train' && t.dataset.s !== undefined) {
     const e = cur(), tg = t.dataset.s === 'e' ? e.eff : e.warm[+t.dataset.s];
     tg[f] = Math.max(0, num(t.value, tg[f])); if (f === 'r') tg.r = Math.round(tg.r);
@@ -1229,8 +1467,8 @@ document.addEventListener('change', ev => {
   if (f === 'exname') {
     const v = t.value.trim(), x = routine(ui.planId).exercises[+t.dataset.i];
     if (!v) return;
-    const clash = catalog().find(c => c.id !== x.id && normName(c.name) === normName(v));
-    if (clash) { toast(`Ya existe “${clash.name}”. Combínalos en Ajustes › Mis ejercicios.`); t.value = x.name; return; }
+    const clash = ownByName(v);
+    if (clash && clash.id !== x.id) { toast(`Ya existe “${clash.name}”. Fusiónalos en Ajustes › Mis ejercicios.`); t.value = x.name; return; }
     setShared(x.id, { name: v }); save(); return;
   }
   if (f === 'exgroup') { setShared(routine(ui.planId).exercises[+t.dataset.i].id, { group: t.value }); save(); return; }
@@ -1242,7 +1480,7 @@ document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.dataset.f === 'pname') ui.form.name = t.value;
   if (t.dataset.f === 'exfName') ui.exForm.name = t.value;
-  if (t.id === 'newex') { ui.q = t.value; const s = $('#sugg'); if (s) s.innerHTML = suggHtml(ui.q); }
+  if (t.id === 'newex') { ui.q = t.value; if (!t.value.trim()) ui.ng = null; const s = $('#sugg'); if (s) s.innerHTML = suggHtml(ui.q); }
   if (t.id === 'catq2') { ui.cf.q = t.value; const s = $('#catBody'); if (s) s.innerHTML = catViewBody(); }
   if (t.id === 'exq') { ui.exq = t.value; const s = $('#exlistBody'); if (s) s.innerHTML = exListBody(); }
 });
@@ -1252,7 +1490,7 @@ function doMerge(dstId) {
   if (!confirm(`¿Combinar “${src.name}” con “${dst.name}”?\n\nQueda solo “${dst.name}” con ${src.n + dst.n} sesiones. Esto no se puede deshacer (descarga un respaldo antes si tienes dudas).`)) return;
   mergeExercise(src.id, dst.id); save();
   toast(`Combinado: ${src.n + dst.n} sesiones en “${dst.name}”`);
-  ui.exEdit = dst.id; ui.exForm = { name: dst.name, group: dst.group, unit: dst.unit }; go('exedit');
+  ui.mergeOpen = false; ui.exEdit = dst.id; ui.exForm = { name: dst.name, group: dst.group, unit: dst.unit }; go('exedit');
 }
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'newex') ACT.exAdd(); });
 document.addEventListener('focusin', ev => { if (ev.target.matches('.stepper input')) ev.target.select(); });
@@ -1262,4 +1500,5 @@ document.addEventListener('visibilitychange', () => {
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+fillGroups();
 render();
