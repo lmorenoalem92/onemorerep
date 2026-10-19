@@ -13,7 +13,7 @@ const GROUPS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', '
 const RADAR = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', 'Core'];
 const DEF_SETTINGS = { step: 2.5, stepLb: 5, restWarm: 60, restEff: 120 };
 const FREE_DAYS = 3;
-const APP_VER = 'V4';
+const APP_VER = 'V5';
 const C = { acc: '#C8FF2E', ok: '#4DD7FF', bad: '#F2A0A0', grid: '#2E2F34', mu: '#A3A3A8', tx: '#F4F1EC', card: '#1C1D20' };
 // Tonos neón: el color de "progresaste" (ok) cambia para no confundirse con el neón elegido
 const NEONS = [
@@ -976,9 +976,24 @@ function chartBars(items) {
   return `<div class="hbars">${s.map(e => `<div class="col" style="gap:4px"><div class="row-sb sm"><span>${esc(e.x.name)}</span><span style="font-weight:700;white-space:nowrap">${e.pct > 0 ? '+' : ''}${e.pct}%</span></div>
     <div class="hb"><i style="width:${Math.max(2, Math.round(Math.max(0, e.pct) / mx * 100))}%;background:${e.pct > 0 ? C.acc : '#4A4B52'}"></i></div><span class="muted" style="font-size:12px">${fmt(e.a)} → ${fmt(e.b)} ${e.u}</span></div>`).join('')}</div>`;
 }
+// Grupos con ejercicios registrados en el periodo pero con un solo registro: todavía no hay avance que medir
+function radarPending() {
+  const cnt = {};
+  db.sessions.forEach(s => { if (!inRange(s)) return; s.entries.forEach(e => { cnt[e.exerciseId] = (cnt[e.exerciseId] || 0) + 1; }); });
+  const one = new Set();
+  catalog().forEach(c => { if (cnt[c.id] === 1 && RADAR.includes(c.group)) one.add(c.group); });
+  return one;
+}
+const listY = xs => xs.length > 1 ? xs.slice(0, -1).join(', ') + ' y ' + xs[xs.length - 1] : xs[0];
 function chartRadar(items) {
   const G = RADAR.map(g => { const xs = items.filter(i => (i.x.group || 'Otro') === g); return { g, n: xs.length, v: xs.length ? Math.round(xs.reduce((a, i) => a + i.pct, 0) / xs.length) : 0 }; });
-  if (!G.some(g => g.n)) return `<div class="muted sm">Asigna grupo muscular a tus ejercicios en Planear y registra al menos 2 sesiones.</div>`;
+  const one = radarPending(), wait = G.filter(g => !g.n && one.has(g.g)).map(g => g.g), none = G.filter(g => !g.n && !one.has(g.g)).map(g => g.g);
+  const why = 'El balance compara tu primer y tu último registro de cada ejercicio en el periodo, así que se necesitan al menos 2 sesiones del mismo ejercicio.';
+  const note = (wait.length || none.length) ? `<div class="radar-note"><span style="font-weight:700">¿Por qué algunos grupos aparecen con “—”?</span>
+    ${wait.length ? `<span>${esc(listY(wait))}: por ahora solo ${wait.length === 1 ? 'tiene' : 'tienen'} 1 registro por ejercicio. En cuanto repitas ${wait.length === 1 ? 'ese día' : 'esos días'}, aparece su avance.</span>` : ''}
+    ${none.length ? `<span>${esc(listY(none))}: no ${none.length === 1 ? 'tiene' : 'tienen'} entrenos en este periodo.</span>` : ''}
+    <span class="muted">${why}</span></div>` : '';
+  if (!G.some(g => g.n)) return `<div class="radar-note"><span style="font-weight:700">Todavía no hay balance que mostrar</span><span>${why}</span>${wait.length ? `<span>Ya tienes 1 registro en ${esc(listY(wait))}; con el siguiente entreno de cada día empieza a aparecer.</span>` : ''}</div>`;
   const W = 320, H = 210, cx = 160, cy = 104, rad = 70, mx = Math.max(10, ...G.map(g => g.v)) * 1.15;
   const pt = (k, s) => { const a = (-90 + 360 / RADAR.length * k) * Math.PI / 180; return [cx + Math.cos(a) * rad * s, cy + Math.sin(a) * rad * s]; };
   const ring = s => G.map((g, k) => { const p = pt(k, s); return (k ? 'L' : 'M') + r1(p[0]) + ' ' + r1(p[1]); }).join('') + 'Z';
@@ -989,7 +1004,7 @@ function chartRadar(items) {
   s += G.map((g, k) => { const p = pt(k, Math.max(0, g.v) / mx), low = g.n && g.v === minV; return `<path d="${dotPath(p[0], p[1], 4.5)}" fill="${low ? C.bad : C.acc}" stroke="${C.card}" stroke-width="2"/>`; }).join('');
   s += G.map((g, k) => { const p = pt(k, 1.27), low = g.n && g.v === minV; return `<text x="${r1(p[0])}" y="${r1(p[1] + 4)}" text-anchor="middle" font-size="11" fill="${low ? C.bad : '#C9C7C2'}">${g.g} ${g.n ? (g.v > 0 ? '+' : '') + g.v + '%' : '—'}</text>`; }).join('');
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Progreso por grupo muscular: ${G.map(g => g.g + ' ' + g.v + '%').join(', ')}">${s}</svg>
-    <div class="legend"><span><i style="background:${C.acc}"></i>Progreso por grupo</span><span><i style="background:${C.bad}"></i>Zona rezagada</span></div>`;
+    <div class="legend"><span><i style="background:${C.acc}"></i>Progreso por grupo</span><span><i style="background:${C.bad}"></i>Zona rezagada</span></div>${note}`;
 }
 function vProgress() {
   const t = CHART_TYPES.find(x => x.id === ui.ch.type) || CHART_TYPES[0];
@@ -1005,7 +1020,7 @@ function vProgress() {
   if (t.per) {
     if (!ui.ch.ex || !list.some(o => o.x.id === ui.ch.ex)) ui.ch.ex = list.length ? list[0].x.id : null;
     const ex = exById(ui.ch.ex);
-    b += `<label class="sr" for="exSel">Ejercicio</label><select id="exSel" class="inp sel big-sel" data-f="chEx">${list.map(o => `<option value="${o.x.id}" ${o.x.id === ui.ch.ex ? 'selected' : ''}>${esc(o.x.name)} · ${esc(o.day)}</option>`).join('')}</select>`;
+    b += `<label class="sr" for="exSel">Ejercicio</label><select id="exSel" class="inp sel big-sel" data-f="chEx">${list.map(o => `<option value="${o.x.id}" ${o.x.id === ui.ch.ex ? 'selected' : ''}>${esc(o.x.name)}${list.filter(z => normName(z.x.name) === normName(o.x.name)).length > 1 ? ' · ' + esc(o.day) : ''}</option>`).join('')}</select>`;
     if (ex) {
       const u = unitOf(ex), full = history(ex.id).map(h => ({ date: h.date, programId: h.programId, w: r1(conv(h.w, h.unit, u)), r: h.r }));
       full.forEach((p, i) => { p.prevW = i ? full[i - 1].w : null; p.prevR = i ? full[i - 1].r : null; });
