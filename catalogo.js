@@ -118,6 +118,7 @@ const CATALOGO = [
   ['Sentadilla hack', 'Pierna', 'Máquina', 1],
   ['Sentadilla péndulo', 'Pierna', 'Máquina', 0],
   ['Sentadilla goblet', 'Pierna', 'Mancuerna', 0],
+  ['Sentadilla sumo', 'Pierna', 'Barra', 0],
   ['Sentadilla búlgara con mancuernas', 'Pierna', 'Mancuerna', 1],
   ['Sissy squat', 'Pierna', 'Peso corporal', 0],
   ['Prensa de piernas', 'Pierna', 'Máquina', 1],

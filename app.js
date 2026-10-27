@@ -13,7 +13,7 @@ const GROUPS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', '
 const RADAR = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', 'Core'];
 const DEF_SETTINGS = { step: 2.5, stepLb: 5, restWarm: 60, restEff: 120 };
 const FREE_DAYS = 3;
-const APP_VER = 'V5';
+const APP_VER = 'V6';
 const C = { acc: '#C8FF2E', ok: '#4DD7FF', bad: '#F2A0A0', grid: '#2E2F34', mu: '#A3A3A8', tx: '#F4F1EC', card: '#1C1D20' };
 // Tonos neón: el color de "progresaste" (ok) cambia para no confundirse con el neón elegido
 const NEONS = [
@@ -151,6 +151,7 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('No se pudo guardar en este teléfono'); }
+  ilusSync();
 }
 
 let db = load();
@@ -329,7 +330,7 @@ function addCatToDay(c) {
 }
 function catRow(c, inDay) {
   const ok = catAllowed(c);
-  return `<button class="sugg" data-a="useCat" data-n="${esc(c.n)}" ${inDay ? 'disabled' : ''}><span class="col"><span style="font-weight:600">${esc(c.n)}</span><span class="muted sm">${esc(c.g)} · ${esc(c.e)}</span></span>${inDay ? '<span class="tag">En el día ✓</span>' : ok ? '<span class="use">Agregar</span>' : '<span class="tag-pro">PREMIUM</span>'}</button>`;
+  return `<div class="sugg-w"><button class="sugg" data-a="useCat" data-n="${esc(c.n)}" ${inDay ? 'disabled' : ''}><span class="col"><span style="font-weight:600">${esc(c.n)}</span><span class="muted sm">${esc(c.g)} · ${esc(c.e)}</span></span>${inDay ? '<span class="tag">En el día ✓</span>' : ok ? '<span class="use">Agregar</span>' : '<span class="tag-pro">PREMIUM</span>'}</button>${ilusBtn(c.n, null, true)}</div>`;
 }
 function catViewBody() {
   const f = ui.cf, r = routine(ui.planId), q = normName(f.q || '');
@@ -618,6 +619,7 @@ function render() {
   ui.keep = false;
   ensureTick();
   wake(ui.view === 'train');
+  if (ui.view === 'settings') ilusStatus().then(t => { const el = $('#ilusSt'); if (el) el.textContent = t; });
 }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -715,6 +717,7 @@ function vTrain() {
   let b = `<div class="segs" style="grid-template-columns:repeat(${n},1fr)">${c.entries.map((x, i) => `<i class="${i === c.idx ? 'cur' : x.eff.done ? 'ok' : ''}"></i>`).join('')}</div>
   ${timerBar()}
   <h2 class="exname">${esc(e.name)}</h2>
+  ${ilusBtn(e.name, e.exerciseId)}
   ${range || ex.notes ? `<div class="card notes">${range ? `<span class="eyebrow hl">Objetivo · ${range}</span>` : ''}${ex.notes ? `<span class="note-t">${esc(ex.notes)}</span>` : ''}</div>` : ''}
   <div class="card row-sb" style="flex-direction:row"><div class="col"><span class="eyebrow">La vez pasada${last ? ' · ' + fdate(last.date) : ''}</span><span class="num md">${last ? `${fmt(last.eff.w)} ${unitOf(last)} × ${last.eff.r} reps` : 'Sin registro'}</span>${last && last.eff.w > 0 ? `<span class="muted sm">≈ ${fmt(r1(conv(last.eff.w, unitOf(last), other(unitOf(last)))))} ${other(unitOf(last))}</span>` : ''}</div><span class="muted sm">${last && last.eff.tech && last.eff.tech !== 'Normal' ? esc(last.eff.tech) : 'serie al fallo'}</span></div>
   <span class="eyebrow mt">Calentamiento</span>`;
@@ -758,7 +761,7 @@ function vPlan() {
   let b = `<div class="card"><label class="eyebrow" for="rname">Nombre del día</label><input id="rname" class="inp" value="${esc(r.name)}" data-f="rname"></div>
   <span class="eyebrow mt">Ejercicios, en orden</span>`;
   b += r.exercises.length ? r.exercises.map((x, i) => `<div class="card">
-    <div class="row"><span class="badge">${i + 1}</span><input class="inp" value="${esc(x.name)}" data-f="exname" data-i="${i}" aria-label="Nombre del ejercicio ${i + 1}"></div>
+    <div class="row"><span class="badge">${i + 1}</span><input class="inp" value="${esc(x.name)}" data-f="exname" data-i="${i}" aria-label="Nombre del ejercicio ${i + 1}">${ilusBtn(x.name, x.id, true)}</div>
     ${(() => { const ds = db.routines.filter(d => d.id !== r.id && d.exercises.some(y => y.id === x.id)); return ds.length ? `<div class="row-sb" style="background:var(--warm-bg);border:1px solid var(--warm-bd);border-radius:12px;padding:6px 6px 6px 12px"><span class="sm" style="color:var(--note-tx)">Compartido con ${esc(ds.map(d => d.name).join(', '))}: si lo renombras cambia allá también</span><button class="btn hl-t" style="height:40px;flex-shrink:0" data-a="sepEx" data-i="${i}">Separar</button></div>` : ''; })()}
     <div class="row"><span class="muted sm" style="flex:1">Reps objetivo</span>
       <input class="inp mini" type="number" inputmode="numeric" min="0" placeholder="mín" value="${x.repMin || ''}" data-f="repMin" data-i="${i}" aria-label="Reps mínimas">
@@ -1058,7 +1061,7 @@ function vProgress() {
 
 /* ---------- premium ---------- */
 function vPremium() {
-  const rows = [['Registrar series, calentamientos y descanso', '✓', '✓'], ['Cronómetro y resumen del entreno', '✓', '✓'], ['Comparar con la vez pasada', '✓', '✓'], ['Días propios', String(FREE_DAYS), 'Sin límite'], ['Fases planeadas', '1', 'Sin límite'], ['Enfoques listos', '1', 'Los 6'], ['Catálogo de ejercicios', `${CAT_BASIC} básicos`, `Los ${CATALOGO.length}`], ['Descanso activo entre fases', '—', '✓'], ['Gráficas', 'Líneas, columnas, tabla', '+ barras, radar, dispersión'], ['Exportar a Excel', '—', '✓'], ['Respaldo y restaurar', '✓', '✓']];
+  const rows = [['Registrar series, calentamientos y descanso', '✓', '✓'], ['Cronómetro y resumen del entreno', '✓', '✓'], ['Comparar con la vez pasada', '✓', '✓'], ['Días propios', String(FREE_DAYS), 'Sin límite'], ['Fases planeadas', '1', 'Sin límite'], ['Enfoques listos', '1', 'Los 6'], ['Catálogo de ejercicios', `${CAT_BASIC} básicos`, `Los ${CATALOGO.length}`], ['Ilustración animada y técnica de cada ejercicio', `${ILUS_FREE} básicos`, `Los ${ILUS_INDEX.length}`], ['Descanso activo entre fases', '—', '✓'], ['Gráficas', 'Líneas, columnas, tabla', '+ barras, radar, dispersión'], ['Exportar a Excel', '—', '✓'], ['Respaldo y restaurar', '✓', '✓']];
   let b = `<h2 class="exname" style="font-size:32px">Entrena el año completo, fase por fase</h2>
   <div class="card" style="padding:6px 14px;gap:0"><div class="ptr th"><span></span><span>Gratis</span><span class="hl">Premium</span></div>${rows.map(r => `<div class="ptr"><span>${r[0]}</span><span class="muted">${r[1]}</span><span class="hl">${r[2]}</span></div>`).join('')}</div>
   <div class="grid2">${[['mensual', 'Mensual', 'por mes'], ['anual', 'Anual', 'por año · ahorra [X]%']].map(([id, l, n]) => `<button class="card plan ${ui.plan === id ? 'on' : ''}" data-a="plan2" data-v="${id}" aria-pressed="${ui.plan === id}"><span class="eyebrow">${l}</span><span class="num" style="font-size:24px;font-weight:700">[PRECIO]</span><span class="muted sm">${n}</span></button>`).join('')}</div>
@@ -1079,6 +1082,7 @@ function vSettings() {
     <span class="eyebrow">Incremento con −/+ en lb</span>${chips('stepLb', [2.5, 5, 10], ' lb')}</div>
   <div class="card"><span class="eyebrow">Descanso después de calentamiento</span>${chips('restWarm', [45, 60, 90], ' s')}
     <span class="eyebrow">Descanso después de la serie efectiva</span>${chips('restEff', [90, 120, 180], ' s')}</div>
+  <div class="card"><span class="eyebrow">Ilustraciones de ejercicios</span><span class="muted sm" id="ilusSt">…</span><span class="muted sm">Toca “Cómo se hace” en un ejercicio para verla.</span></div>
   <div class="card"><span class="eyebrow">Tus datos</span><span class="muted sm">Se guardan solo en este teléfono. Haz respaldo de vez en cuando.</span>
     <button class="btn acc" data-a="exportCsv">Exportar a Excel (.csv)${isPro() ? '' : ' ' + ICON.lock}</button>
     <button class="btn" data-a="backup">Descargar respaldo</button>
@@ -1461,6 +1465,7 @@ const ACT = {
   }
 };
 
+Object.assign(ACT, ILUS_ACT);
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-a]');
   if (!b || b.disabled) return;
@@ -1517,3 +1522,4 @@ if (navigator.storage && navigator.storage.persist) navigator.storage.persist().
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 fillGroups();
 render();
+ilusSync();
