@@ -121,6 +121,7 @@ const CATALOGO = [
   ['Sentadilla sumo', 'Pierna', 'Barra', 0],
   ['Sentadilla búlgara con mancuernas', 'Pierna', 'Mancuerna', 1],
   ['Sissy squat', 'Pierna', 'Peso corporal', 0],
+  ['Sentadilla isométrica en pared', 'Pierna', 'Peso corporal', 1],
   ['Prensa de piernas', 'Pierna', 'Máquina', 1],
   ['Prensa de piernas horizontal', 'Pierna', 'Máquina', 0],
   ['Extensiones de pierna', 'Pierna', 'Máquina', 1],

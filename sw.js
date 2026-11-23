@@ -1,8 +1,8 @@
 /* Guarda la app en el teléfono para que abra sin internet.
-   Al publicar cambios, sube el número de versión (omr-V6, omr-V7... igual que la versión de la app). */
-const V = 'omr-V6';
+   Al publicar cambios, sube el número de versión (omr-V7, omr-V8... igual que la versión de la app). */
+const V = 'omr-V7';
 importScripts('ilus-config.js', 'ilustraciones.js');
-const SHELL = ['./', 'index.html', 'styles.css', 'catalogo.js', 'ilus-config.js', 'ilustraciones.js', 'ilus.js', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css', 'catalogo.js', 'ilus-config.js', 'ilustraciones.js', 'ilus.js', 'similares.js', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 // Ilustraciones que viajan dentro de la app: en pruebas todas; en modo servidor solo las gratis
 const ILUS = ILUS_INDEX.filter(i => ILUS_CFG.modo === 'local' || i.f).map(i => ILUS_CFG.local + i.s + '.svg');
 

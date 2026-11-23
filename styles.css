@@ -229,3 +229,24 @@ svg { flex-shrink: 0; }
 .ilus-lock { flex-direction: column; align-items: flex-start; gap: 8px; }
 body.noscroll .main { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .sheet, .sheet-bg { transition: none; } }
+
+/* ---------- ejercicios similares / confirmaciones ---------- */
+.ex-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -4px; }
+.ex-btns .btn-ilus { margin-top: 0; }
+.btn-ilus svg { color: var(--acc); }
+.swap-n { margin-top: -8px; }
+.sheet-b .card.list { padding: 4px 14px; gap: 0; }
+.sheet-b .card.list .sugg:last-child { border-bottom: 0; }
+.sheet-b .tag { flex-shrink: 0; }
+.info-b { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--mu); border-radius: 50%; margin: -8px -8px -8px 0; }
+.info-b:active { background: var(--card2); }
+.tech-i { gap: 6px; }
+.tech-i.on { border-color: var(--acc); }
+
+/* ---------- modo series ---------- */
+.last-s { font-size: 16px; font-weight: 600; line-height: 1.4; }
+.hint-s { background: var(--warm-bg); border: 1px solid var(--warm-bd); color: var(--acc-t); border-radius: 14px; padding: 10px 14px; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.card.set.is-next { outline: 2px solid var(--acc); outline-offset: -2px; }
+.iso-on .num { font-variant-numeric: tabular-nums; }
+.seg .chip { white-space: nowrap; flex-shrink: 0; width: auto; min-width: 44px; padding: 0 12px; }
+.seg > .muted { min-width: 0; }

@@ -13,7 +13,7 @@ const GROUPS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', '
 const RADAR = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Pierna', 'Core'];
 const DEF_SETTINGS = { step: 2.5, stepLb: 5, restWarm: 60, restEff: 120 };
 const FREE_DAYS = 3;
-const APP_VER = 'V6';
+const APP_VER = 'V7';
 const C = { acc: '#C8FF2E', ok: '#4DD7FF', bad: '#F2A0A0', grid: '#2E2F34', mu: '#A3A3A8', tx: '#F4F1EC', card: '#1C1D20' };
 // Tonos neón: el color de "progresaste" (ok) cambia para no confundirse con el neón elegido
 const NEONS = [
@@ -32,6 +32,8 @@ function applyNeon() {
 
 const ICON = {
   back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  swap: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>',
+  info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r=".6" fill="currentColor"/></svg>',
   close: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   pause: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   play: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
@@ -87,6 +89,19 @@ const lastEffIn = (l, u) => ({ w: r1(conv(l.eff.w, unitOf(l), u)), r: l.eff.r })
 /* ---------- enfoques (plantillas) ---------- */
 // [nombre, grupo, repMin, repMax, unidad, notas]
 const TEMPLATES = [
+  { id: 'inicio', g: 'acond', name: 'Primeros pasos', pro: false, desc: 'Cuerpo completo en 2 días alternados, con máquinas y peso moderado. Para empezar o regresar después de tiempo.', days: 2, weeks: 8, cycles: 12, calGen: 5, ser: { sets: 2, rest: 90 }, plan: [
+    ['Cuerpo completo A', [['Prensa de piernas', 'Pierna', 12, 15, 'kg', 'Baja hasta que las rodillas queden a 90°, sin despegar la espalda.'], ['Press de pecho en máquina', 'Pecho', 12, 15, 'kg', ''], ['Jalón al pecho agarre abierto', 'Espalda', 12, 15, 'kg', ''], ['Curl femoral sentado', 'Pierna', 12, 15, 'kg', ''], ['Elevaciones laterales con mancuernas', 'Hombro', 12, 15, 'lb', 'Peso ligero; sube solo hasta la altura de los hombros.'], ['Plancha', 'Core', 20, 40, 'kg', 'Cuerpo recto de la cabeza a los talones. Respira normal.']]],
+    ['Cuerpo completo B', [['Sentadilla hack', 'Pierna', 12, 15, 'kg', ''], ['Remo sentado en polea', 'Espalda', 12, 15, 'kg', ''], ['Press de hombro en máquina', 'Hombro', 12, 15, 'kg', ''], ['Extensiones de pierna', 'Pierna', 12, 15, 'kg', ''], ['Curl con mancuernas alterno', 'Bíceps', 12, 15, 'lb', ''], ['Extensión de tríceps en polea con soga', 'Tríceps', 12, 15, 'kg', '']]]
+  ] },
+  { id: 'full3', g: 'acond', name: 'Cuerpo completo 3 días', pro: true, desc: 'Tres sesiones distintas de cuerpo completo, con mancuernas y máquinas. El siguiente paso después de Primeros pasos.', days: 3, weeks: 8, cycles: 8, calGen: 5, ser: { sets: 3, rest: 90 }, plan: [
+    ['Cuerpo completo A', [['Sentadilla goblet', 'Pierna', 10, 12, 'lb', 'Mancuerna pegada al pecho.'], ['Press de banca con mancuernas', 'Pecho', 10, 12, 'lb', ''], ['Remo con mancuerna a una mano', 'Espalda', 10, 12, 'lb', ''], ['Peso muerto rumano con mancuernas', 'Pierna', 10, 12, 'lb', 'Espalda recta; baja hasta media espinilla.'], ['Elevaciones laterales con mancuernas', 'Hombro', 12, 15, 'lb', ''], ['Crunch en polea de rodillas', 'Core', 12, 15, 'kg', '']]],
+    ['Cuerpo completo B', [['Prensa de piernas', 'Pierna', 10, 12, 'kg', ''], ['Press inclinado en máquina', 'Pecho', 10, 12, 'kg', ''], ['Jalón al pecho agarre cerrado', 'Espalda', 10, 12, 'kg', ''], ['Curl femoral acostado', 'Pierna', 10, 12, 'kg', ''], ['Face pull en polea', 'Hombro', 12, 15, 'kg', ''], ['Curl martillo con mancuernas', 'Bíceps', 10, 12, 'lb', '']]],
+    ['Cuerpo completo C', [['Desplantes con mancuernas', 'Pierna', 10, 12, 'lb', 'Reps por pierna.'], ['Press de hombro con mancuernas', 'Hombro', 10, 12, 'lb', ''], ['Remo sentado en polea', 'Espalda', 10, 12, 'kg', ''], ['Hip thrust en máquina', 'Pierna', 10, 12, 'kg', ''], ['Extensión de tríceps en polea con soga', 'Tríceps', 10, 12, 'kg', ''], ['Plancha lateral', 'Core', 20, 40, 'kg', 'Tiempo por lado.']]]
+  ] },
+  { id: 'activa', g: 'acond', name: 'Vida activa 50+', pro: true, desc: 'Fuerza para el día a día: máquinas, movimientos lentos y controlados, y descansos largos. 2 veces por semana.', days: 2, weeks: 8, cycles: 16, calGen: 10, ser: { sets: 2, rest: 120 }, plan: [
+    ['Día A', [['Prensa de piernas', 'Pierna', 12, 15, 'kg', 'Baja en 3 segundos, sin rebotes.'], ['Press de pecho en máquina', 'Pecho', 12, 15, 'kg', ''], ['Remo en máquina', 'Espalda', 12, 15, 'kg', ''], ['Abducción de cadera en máquina', 'Pierna', 12, 15, 'kg', ''], ['Elevaciones laterales en máquina', 'Hombro', 12, 15, 'kg', ''], ['Puente de glúteo', 'Pierna', 12, 15, 'kg', 'Aprieta los glúteos arriba 2 segundos.']]],
+    ['Día B', [['Extensiones de pierna', 'Pierna', 12, 15, 'kg', 'Sube y baja lento.'], ['Curl femoral sentado', 'Pierna', 12, 15, 'kg', ''], ['Jalón al pecho agarre abierto', 'Espalda', 12, 15, 'kg', ''], ['Press de hombro en máquina', 'Hombro', 12, 15, 'kg', ''], ['Aducción de cadera en máquina', 'Pierna', 12, 15, 'kg', ''], ['Sentadilla isométrica en pared', 'Pierna', 20, 45, 'kg', 'Espalda pegada a la pared, rodillas a 90° o menos si molesta.']]]
+  ] },
   { id: 'clasico', name: 'Clásico', pro: false, desc: 'La base: 3 días, 1–2 calentamientos y una serie al fallo por ejercicio.', days: 3, weeks: 8, cycles: 8, plan: [
     ['Pecho y espalda', [['Aperturas con mancuernas', 'Pecho', 6, 10, 'lb', 'Enlazar con el press inclinado, sin descanso.'], ['Press inclinado en máquina', 'Pecho', 6, 10, 'kg', ''], ['Pullover en máquina', 'Espalda', 6, 10, 'kg', 'Enlazar con el jalón, sin descanso.'], ['Jalón al pecho agarre cerrado', 'Espalda', 6, 10, 'kg', ''], ['Remo con barra', 'Espalda', 6, 10, 'kg', '']]],
     ['Piernas', [['Extensiones de pierna', 'Pierna', 8, 15, 'kg', 'Enlazar con la prensa, sin descanso.'], ['Prensa de piernas', 'Pierna', 8, 15, 'kg', ''], ['Curl femoral', 'Pierna', 6, 10, 'kg', ''], ['Elevación de pantorrilla de pie', 'Pierna', 12, 20, 'kg', '']]],
@@ -119,6 +134,9 @@ const TEMPLATES = [
   ] }
 ];
 const tplById = id => TEMPLATES.find(t => t.id === id);
+const tplG = t => (t && t.g) || 'hd';
+const TPL_G = { acond: ['Acondicionamiento y principiantes', 'Cuerpo completo, más repeticiones y peso moderado, sin llegar al fallo.'], hd: ['Alta intensidad (HD)', 'Pocas series, todas al fallo. Método Heavy Duty.'] };
+const NIVELES = [['empiezo', 'Empiezo o regreso después de tiempo', 'acond'], ['forma', 'Quiero mantenerme en forma', 'acond'], ['intenso', 'Ya entreno con intensidad', 'hd']];
 
 /* ---------- datos ---------- */
 function seed() {
@@ -126,8 +144,9 @@ function seed() {
 }
 function buildFromTemplate(t) {
   const routines = t.plan.map(([dn, exs], i) => ({
-    id: uid() + 'd' + i, name: dn,
-    exercises: exs.map(([n, g, a, b, u, notes], k) => ({ id: uid() + 'x' + i + k, name: n, group: g, repMin: a, repMax: b, unit: u, notes, warmups: 1 }))
+    id: uid() + 'd' + i, name: dn, calGen: t.calGen || 0,
+    exercises: exs.map(([n, g, a, b, u, notes, o], k) => Object.assign({ id: uid() + 'x' + i + k, name: n, group: g, repMin: a, repMax: b, unit: u, notes, warmups: 1 },
+      t.ser ? { mode: 'series', sets: t.ser.sets, rest: t.ser.rest } : {}, isTimeName(n) ? { time: true } : {}, o || {}))
   }));
   return {
     routines,
@@ -159,7 +178,7 @@ applyNeon();
 const ui = {
   view: !db.onboarded ? 'welcome' : db.current ? 'train' : 'home',
   planId: null, form: null, summary: null, rest: null, tick: null, keep: false,
-  tpl: 'clasico', ch: { type: 'lineas', ex: null, range: 'todo', sel: null }, proBack: 'home', plan: 'anual'
+  tpl: db.onboarded ? 'clasico' : 'inicio', ch: { type: 'lineas', ex: null, range: 'todo', sel: null }, proBack: 'home', plan: 'anual'
 };
 const isPro = () => !!db.premium;
 
@@ -212,7 +231,7 @@ function lastInfo(rid) {
 }
 function history(exId) {
   const out = [];
-  db.sessions.forEach(s => s.entries.forEach(e => { if (e.exerciseId === exId) out.push({ date: s.date, programId: s.programId, w: e.eff.w, r: e.eff.r, unit: unitOf(e) }); }));
+  db.sessions.forEach(s => s.entries.forEach(e => { if (e.exerciseId === exId) out.push({ date: s.date, programId: s.programId, w: e.eff.w, r: e.eff.r, unit: unitOf(e), vol: e.vol, n: e.sets ? e.sets.length : 0, time: !!e.time }); }));
   return out;
 }
 function exById(id) {
@@ -221,6 +240,19 @@ function exById(id) {
 }
 const ejs = n => n + (n === 1 ? ' ejercicio' : ' ejercicios');
 const cur = () => db.current.entries[db.current.idx];
+// Modo de cada ejercicio: 'series' (2–4 series sin fallo) o al fallo (HD, por defecto)
+const isSeries = e => !!e && e.mode === 'series';
+const isDone = e => isSeries(e) ? e.sets.some(s => s.done) : e.eff.done;
+const bestOf = sets => sets.reduce((b, s) => !b || beats(s, b) ? s : b, null);
+const setRef = (e, s) => s === 'e' ? e.eff : String(s)[0] === 'x' ? e.sets[+String(s).slice(1)] : e.warm[+s];
+// Isométricos: se miden en segundos
+const ISO_N = new Set(['plancha', 'plancha lateral', 'sentadilla isometrica en pared']);
+const isTimeName = n => ISO_N.has(String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim());
+function curEx() {
+  const c = db.current, e = cur();
+  const rx = (routine(c.routineId) || { exercises: [] }).exercises, oid = e.swapFrom ? e.swapFrom.id : e.exerciseId;
+  return rx.find(x => x.id === oid) || rx.find(x => x.id === e.exerciseId) || exById(oid) || exById(e.exerciseId) || {};
+}
 
 /* ---------- catálogo de ejercicios (compartidos entre días) ---------- */
 // Un mismo ejercicio puede estar en varios días con el mismo id: comparte nombre, grupo, unidad e historial.
@@ -325,7 +357,7 @@ function addCatToDay(c) {
   const r = routine(ui.planId); if (!r) return false;
   const ex = ownByName(c.n);
   if (ex) return addExerciseToDay(r, ex.id);
-  r.exercises.push({ id: uid(), name: c.n, group: c.g, unit: catUnit(c.e), equip: c.e, warmups: 1 });
+  r.exercises.push(Object.assign({ id: uid(), name: c.n, group: c.g, unit: catUnit(c.e), equip: c.e, warmups: 1 }, isTimeName(c.n) ? { time: true } : {}, r.exercises.length && r.exercises.every(x => x.mode === 'series') ? { mode: 'series', sets: r.exercises[0].sets || 3, rest: r.exercises[0].rest || 90 } : {}));
   return true;
 }
 function catRow(c, inDay) {
@@ -503,8 +535,13 @@ function startTraining(rid) {
   if (!r || !r.exercises.length) { toast('Primero agrega ejercicios a este día'); ui.planId = rid; go('plan'); return; }
   const p = activePhase();
   db.current = {
-    routineId: r.id, routineName: r.name, programId: p ? p.id : null, idx: 0, acc: 0, runAt: null, firstAt: null,
-    entries: r.exercises.map(ex => {
+    routineId: r.id, routineName: r.name, programId: p ? p.id : null, idx: 0, acc: 0, runAt: null, firstAt: null, calGen: r.calGen || 0,
+    entries: r.exercises.map(mkEntry)
+  };
+  save(); go('train');
+}
+// Arma el registro de un ejercicio para el entreno, con los pesos de la vez pasada
+function mkEntry(ex) {
       const last = lastEntry(ex.id);
       const u = unitOf(ex), lu = last ? unitOf(last) : u, step = stepFor(u);
       const cw = w => r1(conv(w, lu, u));
@@ -515,16 +552,22 @@ function startTraining(rid) {
         const lw = last && last.warm && last.warm[k];
         warm.push(lw ? { w: cw(lw.w), r: lw.r, done: false } : { w: roundTo(ew * (k === 0 ? 0.5 : 0.75), step), r: k === 0 ? 12 : 6, done: false });
       }
-      return { exerciseId: ex.id, name: ex.name, unit: u, warm, eff: { w: ew, r: er, done: false, tech: 'Normal' } };
-    })
-  };
-  save(); go('train');
+      const base = { exerciseId: ex.id, name: ex.name, unit: u, warm, eff: { w: ew, r: er, done: false, tech: 'Normal' } };
+      if (ex.time) base.time = true;
+      if (ex.mode === 'series') {
+        const n = ex.sets || 3, ls = last && last.sets, sets = [];
+        for (let k = 0; k < n; k++) { const l = ls && (ls[k] || ls[ls.length - 1]); sets.push(l ? { w: cw(l.w), r: l.r, done: false } : { w: ew, r: last ? er : (ex.repMin || (ex.time ? 30 : 12)), done: false }); }
+        return Object.assign(base, { mode: 'series', rest: ex.rest || 90, warm: [], sets });
+      }
+      return base;
 }
-function finishTraining() {
+function finishTraining(asked) {
   const c = db.current;
+  // En modo series, la mejor serie hace de "serie efectiva" para comparar y graficar
+  c.entries.forEach(e => { if (isSeries(e)) { const b = bestOf(e.sets.filter(s => s.done)); if (b) e.eff = { w: b.w, r: b.r, tech: 'Normal', done: true }; else e.eff.done = false; } });
   const done = c.entries.filter(e => e.eff.done);
   if (!done.length) {
-    if (!confirm('No registraste ninguna serie efectiva. ¿Cerrar el entreno sin guardar?')) return;
+    if (!asked && !confirm('No registraste ninguna serie efectiva. ¿Cerrar el entreno sin guardar?')) return;
   } else {
     const end = Date.now();
     let dur = Math.round(tElapsed(c) / 1000) || null;
@@ -540,7 +583,9 @@ function finishTraining() {
     db.sessions.push({
       id: uid(), date: todayISO(), at: end, startedAt: started, endedAt: end, durationSec: dur,
       programId: c.programId, routineId: c.routineId, routineName: c.routineName,
-      entries: done.map(e => ({ exerciseId: e.exerciseId, name: e.name, unit: unitOf(e), warm: e.warm.map(w => ({ w: w.w, r: w.r })), eff: { w: e.eff.w, r: e.eff.r, tech: e.eff.tech } }))
+      entries: done.map(e => Object.assign({ exerciseId: e.exerciseId, name: e.name, unit: unitOf(e), warm: e.warm.filter(w => !isSeries(e) || w.done).map(w => ({ w: w.w, r: w.r })), eff: { w: e.eff.w, r: e.eff.r, tech: e.eff.tech } },
+        e.time ? { time: true } : {},
+        isSeries(e) ? (() => { const ss = e.sets.filter(s => s.done).map(s => ({ w: s.w, r: s.r })); return { mode: 'series', sets: ss, vol: r1(ss.reduce((a, s) => a + s.w * s.r, 0)) }; })() : {}))
     });
     ui.summary = {
       routineName: c.routineName, total: done.length, of: c.entries.length, prs, firsts, same,
@@ -570,7 +615,7 @@ function tStart() { const c = db.current; if (!c || c.runAt) return; c.runAt = D
 function tPause() { const c = db.current; if (!c || !c.runAt) return; c.acc = tElapsed(c); c.runAt = null; }
 function tReset() { const c = db.current; if (!c) return; c.acc = 0; c.runAt = null; c.firstAt = null; }
 const elapsedText = () => fmtDur(Math.floor(tElapsed(db.current) / 1000));
-const anyDone = c => c.entries.some(e => e.eff.done || e.warm.some(w => w.done));
+const anyDone = c => c.entries.some(e => e.eff.done || e.warm.some(w => w.done) || (e.sets || []).some(s => s.done));
 function timerBar() {
   const st = tState(db.current);
   if (st === 'idle') return `<div class="tbar"><span class="muted sm" style="flex:1">El cronómetro arranca al marcar tu primera serie.</span><button class="btn ghost" data-a="tStart">${ICON.play} Iniciar</button></div>`;
@@ -581,15 +626,21 @@ function restText() {
   const left = ui.rest ? Math.max(0, Math.ceil((ui.rest.end - Date.now()) / 1000)) : 0;
   return Math.floor(left / 60) + ':' + pad2(left % 60);
 }
-function startRest(sec) { ui.rest = { end: Date.now() + sec * 1000 }; }
+function startRest(sec, label) { ui.rest = { end: Date.now() + sec * 1000, label: label || 'Descanso' }; }
 function stopRest() { ui.rest = null; }
 function tick() {
   const c = document.getElementById('clockT'); if (c) c.textContent = elapsedText();
+  if (ui.iso) {
+    const sec = Math.floor((Date.now() - ui.iso.start) / 1000), el = document.getElementById('isoT');
+    if (el) el.textContent = fmtDur(sec);
+    if (ui.iso.goal && !ui.iso.buzz && sec >= ui.iso.goal) { ui.iso.buzz = true; try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) { /* sin vibración */ } toast('¡Llegaste a ' + ui.iso.goal + ' s!'); }
+  }
   if (!ui.rest) return;
   if (Date.now() >= ui.rest.end) {
+    const lb = ui.rest.label || 'Descanso';
     stopRest();
     try { if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (e) { /* sin vibración */ }
-    toast('¡Descanso terminado!');
+    toast(lb === 'Descanso' ? '¡Descanso terminado!' : '¡' + lb + ' terminado!');
     rerender(); return;
   }
   const el = document.getElementById('restT'); if (el) el.textContent = restText();
@@ -629,7 +680,7 @@ function screen(o) {
   const backBtn = o.back ? `<button class="icon-btn" data-a="${o.backA || 'go'}" data-v="${o.back}" aria-label="Volver">${o.closeIcon ? ICON.close : ICON.back}</button>` : '';
   return `<header class="hdr">${backBtn}<div class="hdr-t">${o.sub ? `<span class="eyebrow ${o.subHl ? 'hl' : ''}">${esc(o.sub)}</span>` : ''}<h1>${esc(o.title)}</h1></div>${o.right || ''}</header>
 <main class="main">${o.body}</main>
-${ui.view === 'train' && ui.rest ? `<div class="rest"><div class="col"><span class="eyebrow">Descanso</span><span class="num" id="restT">${restText()}</span></div><button class="btn" data-a="skipRest">Saltar</button></div>` : ''}
+${ui.view === 'train' && ui.rest ? `<div class="rest"><div class="col"><span class="eyebrow">${esc(ui.rest.label || 'Descanso')}</span><span class="num" id="restT">${restText()}</span></div><button class="btn" data-a="skipRest">Saltar</button></div>` : ''}
 ${o.foot ? `<footer class="foot">${o.foot}</footer>` : ''}
 ${o.nav ? navBar(o.nav) : ''}`;
 }
@@ -656,13 +707,17 @@ function vWelcome() {
 function vEnfoques() {
   const first = !db.onboarded;
   let b = `<p class="muted" style="margin:0;line-height:1.4">Cada enfoque es una fase de 6–8 semanas con sus días y ejercicios listos. Después puedes cambiar lo que quieras.</p>`;
-  b += TEMPLATES.map(t => {
+  const g = tplG(tplById(ui.tpl));
+  b += `<div class="col" style="gap:8px"><span class="eyebrow">¿Cómo entrenas hoy?</span><div class="chips">${NIVELES.map(([k, l, gg]) => `<button class="chip ${(ui.lvl ? ui.lvl === k : gg === g && k !== 'forma') ? 'on' : ''}" data-a="lvl" data-v="${k}">${l}</button>`).join('')}</div></div>
+  <div class="col" style="gap:2px;margin-top:6px"><span class="eyebrow hl">${TPL_G[g][0]}</span><span class="muted sm">${TPL_G[g][1]}</span></div>`;
+  b += TEMPLATES.filter(t => tplG(t) === g).map(t => {
     const on = ui.tpl === t.id, locked = t.pro && !isPro();
     return `<button class="card tpl ${on ? 'on' : ''}" data-a="pickTpl" data-id="${t.id}" aria-pressed="${on}">
       <div class="col"><div class="row"><span class="rname" style="font-size:17px">${esc(t.name)}</span>${locked ? lockTag() : ''}</div>
       <span class="muted sm" style="line-height:1.3">${esc(t.desc)}</span><span class="sm" style="color:#C9C7C2">${t.plan.length} días · ${t.plan.map(p => esc(p[0])).join(', ')}</span></div>
       <span class="radio"></span></button>`;
   }).join('');
+  if (g === 'acond') b += `<span class="muted sm">Si tienes alguna lesión o condición médica, consulta a tu médico antes de empezar.</span>`;
   b += `<button class="btn text" data-a="startEmpty">Prefiero empezar desde cero</button>`;
   const t = tplById(ui.tpl), locked = t.pro && !isPro();
   const foot = `<button class="btn acc lg full" data-a="applyTpl">${locked ? 'Ver Premium para usar este enfoque' : first ? 'Usar ' + esc(t.name) : 'Crear fase con ' + esc(t.name)}</button>`;
@@ -706,31 +761,62 @@ function stepper(set, f, val, unit, big) {
   <label class="val"><input type="number" inputmode="decimal" step="any" min="0" value="${fmt(val)}" data-s="${set}" data-f="${f}" aria-label="${esc(unit)}"><span class="u">${esc(unit)}</span></label>
   <button data-a="step" data-s="${set}" data-f="${f}" data-d="1" aria-label="Más">+</button></div>`;
 }
+// Botón del cronómetro para ejercicios isométricos (plancha, sentadilla en pared…)
+function isoBtn(key, ex) {
+  const goal = ex.repMax || ex.repMin;
+  if (ui.iso && ui.iso.s === key) return `<button class="btn acc lg iso-on" data-a="isoStop">${ICON.pause} Detener · <span id="isoT" class="num">${fmtDur(Math.floor((Date.now() - ui.iso.start) / 1000))}</span></button>`;
+  return `<button class="btn ghost" data-a="isoGo" data-s="${key}">${ICON.play} Iniciar cronómetro${goal ? ` · meta ${goal} s` : ''}</button>`;
+}
+// Modo series: una tarjeta por serie, sin técnicas de intensidad
+function seriesBlock(e, ex, last, u) {
+  const tm = !!e.time, ru = tm ? 's' : 'reps', n = e.sets.length;
+  const lw = (w, lu) => w > 0 ? `${fmt(w)} ${lu} × ` : '';
+  const lt = !last ? 'Sin registro' : last.sets ? last.sets.map((x, k) => `S${k + 1} ${lw(x.w, unitOf(last))}${x.r} ${ru}`).join(' · ') : `${lw(last.eff.w, unitOf(last))}${last.eff.r} ${ru}`;
+  const next = e.sets.findIndex(x => !x.done);
+  const best = bestOf(e.sets.filter(x => x.done)), cmp = best ? compare(best, last, u) : null;
+  const allTop = ex.repMax && e.sets.every(x => x.done && x.r >= ex.repMax);
+  let b = `<div class="card"><span class="eyebrow">La vez pasada${last ? ' · ' + fdate(last.date) : ''}</span><span class="last-s">${lt}</span></div>
+  <div class="hint-s">${tm ? 'Mantén la posición con buena técnica; detén el cronómetro al terminar.' : 'Termina cada serie con 2–3 reps en reserva: sin llegar al fallo.'} Descanso de ${e.rest} s entre series.</div>`;
+  b += e.sets.map((x, k) => `<div class="card set ${x.done ? 'is-done' : ''} ${k === next ? 'is-next' : ''}"><div class="row-sb"><span class="lbl">Serie ${k + 1} de ${n}</span><button class="check ${x.done ? 'on' : ''}" data-a="toggleSet" data-k="${k}" aria-label="Marcar serie ${k + 1}">${ICON.check}</button></div>
+    <div class="grid2">${stepper('x' + k, 'w', x.w, wLabel(x.w, u))}${stepper('x' + k, 'r', x.r, tm ? 'segundos' : 'reps')}</div>
+    ${tm && !x.done ? isoBtn('x' + k, ex) : ''}</div>`).join('');
+  b += `<div class="row" style="gap:8px">${n < 4 ? `<button class="btn dashed" style="flex:1" data-a="addSet">+ Agregar serie</button>` : ''}${n > 1 ? `<button class="btn text" data-a="delSet">Quitar la última</button>` : ''}</div>`;
+  if (cmp) b += `<div class="cmp ${cmp.cls}">Mejor serie: ${cmp.text}</div>`;
+  if (allTop) b += `<div class="cmp up">Todas las series llegaron a ${ex.repMax} ${ru}: la próxima vez sube ${tm ? 'el tiempo objetivo' : 'un poco el peso'}</div>`;
+  return b;
+}
 function vTrain() {
   const c = db.current;
   if (!c) { ui.view = 'home'; return vHome(); }
   const e = cur(), n = c.entries.length, last = lastEntry(e.exerciseId), u = unitOf(e), cmp = compare(e.eff, last, u);
-  const ex = ((routine(c.routineId) || { exercises: [] }).exercises.find(x => x.id === e.exerciseId)) || exById(e.exerciseId) || {};
-  const range =ex.repMin && ex.repMax ? `${ex.repMin}–${ex.repMax} reps` : ex.repMin ? `mín. ${ex.repMin} reps` : ex.repMax ? `máx. ${ex.repMax} reps` : '';
+  const ex = curEx(), ru = e.time ? 's' : 'reps', ser = isSeries(e);
+  const range0 = ex.repMin && ex.repMax ? `${ex.repMin}–${ex.repMax} ${ru}` : ex.repMin ? `mín. ${ex.repMin} ${ru}` : ex.repMax ? `máx. ${ex.repMax} ${ru}` : '';
+  const range = ser ? `${e.sets.length} series${range0 ? ' × ' + range0 : ''}` : range0;
   const topHit = ex.repMax && e.eff.r >= ex.repMax;
   const dn = dayNum(c.routineId);
-  let b = `<div class="segs" style="grid-template-columns:repeat(${n},1fr)">${c.entries.map((x, i) => `<i class="${i === c.idx ? 'cur' : x.eff.done ? 'ok' : ''}"></i>`).join('')}</div>
+  let b = `<div class="segs" style="grid-template-columns:repeat(${n},1fr)">${c.entries.map((x, i) => `<i class="${i === c.idx ? 'cur' : isDone(x) ? 'ok' : ''}"></i>`).join('')}</div>
   ${timerBar()}
+  ${c.calGen && !c.calOk && c.idx === 0 ? `<div class="card notes"><span class="eyebrow hl">Calentamiento general · ${c.calGen} min</span><span class="note-t">Antes del primer ejercicio: caminadora, bici o elíptica a ritmo suave, y movilidad de hombros y cadera.</span><div class="row"><button class="btn acc" data-a="calGo">${ICON.play} Iniciar ${c.calGen}:00</button><button class="btn text" data-a="calSkip">Ya calenté</button></div></div>` : ''}
   <h2 class="exname">${esc(e.name)}</h2>
-  ${ilusBtn(e.name, e.exerciseId)}
-  ${range || ex.notes ? `<div class="card notes">${range ? `<span class="eyebrow hl">Objetivo · ${range}</span>` : ''}${ex.notes ? `<span class="note-t">${esc(ex.notes)}</span>` : ''}</div>` : ''}
-  <div class="card row-sb" style="flex-direction:row"><div class="col"><span class="eyebrow">La vez pasada${last ? ' · ' + fdate(last.date) : ''}</span><span class="num md">${last ? `${fmt(last.eff.w)} ${unitOf(last)} × ${last.eff.r} reps` : 'Sin registro'}</span>${last && last.eff.w > 0 ? `<span class="muted sm">≈ ${fmt(r1(conv(last.eff.w, unitOf(last), other(unitOf(last)))))} ${other(unitOf(last))}</span>` : ''}</div><span class="muted sm">${last && last.eff.tech && last.eff.tech !== 'Normal' ? esc(last.eff.tech) : 'serie al fallo'}</span></div>
+  ${e.swapFrom ? `<span class="muted sm swap-n">Hoy en lugar de ${esc(e.swapFrom.name)}</span>` : ''}
+  <div class="ex-btns">${ilusBtn(e.name, e.exerciseId)}<button class="btn-ilus" data-a="similares">${ICON.swap}Ejercicios similares</button></div>
+  ${range || ex.notes ? `<div class="card notes">${range ? `<span class="eyebrow hl">Objetivo · ${range}</span>` : ''}${ex.notes ? `<span class="note-t">${esc(ex.notes)}</span>` : ''}</div>` : ''}`;
+  if (ser) b += seriesBlock(e, ex, last, u);
+  else {
+  b += `<div class="card row-sb" style="flex-direction:row"><div class="col"><span class="eyebrow">La vez pasada${last ? ' · ' + fdate(last.date) : ''}</span><span class="num md">${last ? `${fmt(last.eff.w)} ${unitOf(last)} × ${last.eff.r} ${ru}` : 'Sin registro'}</span>${last && last.eff.w > 0 ? `<span class="muted sm">≈ ${fmt(r1(conv(last.eff.w, unitOf(last), other(unitOf(last)))))} ${other(unitOf(last))}</span>` : ''}</div><span class="muted sm">${last && last.eff.tech && last.eff.tech !== 'Normal' ? esc(last.eff.tech) : 'serie al fallo'}</span></div>
   <span class="eyebrow mt">Calentamiento</span>`;
   b += e.warm.map((w, k) => `<div class="card set ${w.done ? 'is-done' : ''}"><div class="row-sb"><span class="lbl">Calentamiento ${k + 1}</span><button class="check ${w.done ? 'on' : ''}" data-a="toggleWarm" data-k="${k}" aria-label="Marcar calentamiento ${k + 1}">${ICON.check}</button></div><div class="grid2">${stepper(k, 'w', w.w, wLabel(w.w, u))}${stepper(k, 'r', w.r, 'reps')}</div></div>`).join('');
   b += e.warm.length < 2 ? `<button class="btn dashed" data-a="addWarm">+ Agregar 2.º calentamiento</button>` : `<button class="btn text" data-a="delWarm">Quitar 2.º calentamiento</button>`;
   b += `<div class="card eff ${e.eff.done ? 'is-done' : ''}"><span class="eff-t">Serie efectiva · al fallo</span>
-    ${stepper('e', 'w', e.eff.w, wLabel(e.eff.w, u), true)}${stepper('e', 'r', e.eff.r, 'reps al fallo', true)}
+    ${stepper('e', 'w', e.eff.w, wLabel(e.eff.w, u), true)}${stepper('e', 'r', e.eff.r, e.time ? 'segundos al fallo' : 'reps al fallo', true)}
+    ${e.time && !e.eff.done ? isoBtn('e', ex) : ''}
     <div class="cmp ${cmp.cls}">${cmp.text}</div>
-    ${topHit ? `<div class="cmp up">Llegaste al tope de ${ex.repMax} reps: la próxima vez sube el peso</div>` : ''}
-    <span class="eyebrow">Técnica de intensidad</span>
+    ${topHit ? `<div class="cmp up">Llegaste al tope de ${ex.repMax} ${ru}: la próxima vez sube ${e.time ? 'el tiempo objetivo o la dificultad' : 'el peso'}</div>` : ''}
+    <div class="row-sb"><span class="eyebrow">Técnica de intensidad</span><button class="info-b" data-a="techInfo" aria-label="Qué es cada técnica">${ICON.info}</button></div>
     <div class="chips">${TECHS.map(t => `<button class="chip ${e.eff.tech === t ? 'on' : ''}" data-a="tech" data-t="${t}">${t}</button>`).join('')}</div>
-    <button class="btn ${e.eff.done ? '' : 'acc'} lg" data-a="toggleEff">${e.eff.done ? 'Serie registrada · tocar para editar' : 'Registrar serie al fallo'}</button></div>
-  <button class="btn ghost" data-a="finish">Cerrar entreno ahora</button>
+    <button class="btn ${e.eff.done ? '' : 'acc'} lg" data-a="toggleEff">${e.eff.done ? 'Serie registrada · tocar para editar' : 'Registrar serie al fallo'}</button></div>`;
+  }
+  b += `<button class="btn ghost" data-a="finish">Cerrar entreno ahora</button>
   <button class="btn text danger" data-a="discard">Descartar entreno</button>`;
   const lastEx = c.idx === n - 1;
   const foot = `<button class="btn" data-a="prevEx" ${c.idx === 0 ? 'disabled' : ''}>Anterior</button><button class="btn acc" data-a="${lastEx ? 'finish' : 'nextEx'}">${lastEx ? 'Cerrar entreno' : 'Siguiente ejercicio'}</button>`;
@@ -758,12 +844,21 @@ function vSummary() {
 function vPlan() {
   const r = routine(ui.planId);
   if (!r) { ui.view = 'home'; return vHome(); }
-  let b = `<div class="card"><label class="eyebrow" for="rname">Nombre del día</label><input id="rname" class="inp" value="${esc(r.name)}" data-f="rname"></div>
+  let b = `<div class="card"><label class="eyebrow" for="rname">Nombre del día</label><input id="rname" class="inp" value="${esc(r.name)}" data-f="rname">
+    <div class="seg"><span class="muted sm" style="flex:1">Calentamiento general al inicio</span>${[0, 5, 10].map(n => `<button class="chip ${(r.calGen || 0) === n ? 'on' : ''}" data-a="calGen" data-n="${n}">${n ? n + ' min' : 'No'}</button>`).join('')}</div></div>
   <span class="eyebrow mt">Ejercicios, en orden</span>`;
   b += r.exercises.length ? r.exercises.map((x, i) => `<div class="card">
     <div class="row"><span class="badge">${i + 1}</span><input class="inp" value="${esc(x.name)}" data-f="exname" data-i="${i}" aria-label="Nombre del ejercicio ${i + 1}">${ilusBtn(x.name, x.id, true)}</div>
     ${(() => { const ds = db.routines.filter(d => d.id !== r.id && d.exercises.some(y => y.id === x.id)); return ds.length ? `<div class="row-sb" style="background:var(--warm-bg);border:1px solid var(--warm-bd);border-radius:12px;padding:6px 6px 6px 12px"><span class="sm" style="color:var(--note-tx)">Compartido con ${esc(ds.map(d => d.name).join(', '))}: si lo renombras cambia allá también</span><button class="btn hl-t" style="height:40px;flex-shrink:0" data-a="sepEx" data-i="${i}">Separar</button></div>` : ''; })()}
-    <div class="row"><span class="muted sm" style="flex:1">Reps objetivo</span>
+    <div class="seg"><span class="muted sm" style="flex:1">Modo</span>
+      <button class="chip ${x.mode !== 'series' ? 'on' : ''}" data-a="exMode" data-i="${i}" data-m="fallo">Al fallo</button>
+      <button class="chip ${x.mode === 'series' ? 'on' : ''}" data-a="exMode" data-i="${i}" data-m="series">Series</button></div>
+    ${x.mode === 'series' ? `<div class="seg"><span class="muted sm" style="flex:1">Series</span>${[2, 3, 4].map(n => `<button class="chip ${(x.sets || 3) === n ? 'on' : ''}" data-a="exSets" data-i="${i}" data-n="${n}">${n}</button>`).join('')}</div>
+    <div class="seg"><span class="muted sm" style="flex:1">Descanso</span>${[60, 90, 120].map(n => `<button class="chip ${(x.rest || 90) === n ? 'on' : ''}" data-a="exRest" data-i="${i}" data-n="${n}">${n} s</button>`).join('')}</div>` : ''}
+    <div class="seg"><span class="muted sm" style="flex:1">Medir</span>
+      <button class="chip ${!x.time ? 'on' : ''}" data-a="exTime" data-i="${i}" data-v="0">Reps</button>
+      <button class="chip ${x.time ? 'on' : ''}" data-a="exTime" data-i="${i}" data-v="1">Tiempo</button></div>
+    <div class="row"><span class="muted sm" style="flex:1">${x.time ? 'Segundos objetivo' : 'Reps objetivo'}</span>
       <input class="inp mini" type="number" inputmode="numeric" min="0" placeholder="mín" value="${x.repMin || ''}" data-f="repMin" data-i="${i}" aria-label="Reps mínimas">
       <span class="muted">a</span>
       <input class="inp mini" type="number" inputmode="numeric" min="0" placeholder="máx" value="${x.repMax || ''}" data-f="repMax" data-i="${i}" aria-label="Reps máximas"></div>
@@ -773,9 +868,9 @@ function vPlan() {
     <div class="seg"><span class="muted sm" style="flex:1">Unidad de peso</span>
       <button class="chip ${unitOf(x) === 'kg' ? 'on' : ''}" data-a="unit" data-i="${i}" data-u="kg">kg</button>
       <button class="chip ${unitOf(x) === 'lb' ? 'on' : ''}" data-a="unit" data-i="${i}" data-u="lb">lb</button></div>
-    <div class="row-sb"><div class="seg"><span class="muted sm">Calent.</span>
+    <div class="row-sb">${x.mode === 'series' ? `<span class="muted sm">Sin calentamiento por ejercicio</span>` : `<div class="seg"><span class="muted sm">Calent.</span>
       <button class="chip ${x.warmups === 1 ? 'on' : ''}" data-a="warmups" data-i="${i}" data-n="1">1</button>
-      <button class="chip ${x.warmups === 2 ? 'on' : ''}" data-a="warmups" data-i="${i}" data-n="2">2</button></div>
+      <button class="chip ${x.warmups === 2 ? 'on' : ''}" data-a="warmups" data-i="${i}" data-n="2">2</button></div>`}
       <div class="row"><button class="icon-btn" data-a="exMove" data-i="${i}" data-d="-1" aria-label="Subir" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button>
       <button class="icon-btn" data-a="exMove" data-i="${i}" data-d="1" aria-label="Bajar" ${i === r.exercises.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
       <button class="icon-btn" data-a="exDel" data-i="${i}" aria-label="Eliminar ejercicio">${ICON.trash}</button></div></div></div>`).join('')
@@ -959,7 +1054,7 @@ function readout(p, u, ex) {
   else if (p.w === p.prevW && p.r === p.prevR) { d = 'Igual'; cls = 'same'; }
   else if (p.w < p.prevW) { d = '−' + fmt(r1(p.prevW - p.w)) + ' ' + u; cls = 'down'; }
   else { d = '−' + (p.prevR - p.r) + (p.prevR - p.r === 1 ? ' rep' : ' reps'); cls = 'down'; }
-  return `<div class="readout"><div class="col"><span class="muted sm">${fdateY(p.date)}${ex.repMax && p.r >= ex.repMax ? ' · llegó al tope' : ''}</span><span class="num" style="font-size:22px;font-weight:700">${fmt(p.w)} ${u} × ${p.r} reps</span></div><span class="chip-s ${cls}">${d}</span></div>`;
+  return `<div class="readout"><div class="col"><span class="muted sm">${fdateY(p.date)}${ex.repMax && p.r >= ex.repMax ? ' · llegó al tope' : ''}</span><span class="num" style="font-size:22px;font-weight:700">${p.time && !p.w ? '' : fmt(p.w) + ' ' + u + ' × '}${p.r} ${p.time ? 's' : 'reps'}</span>${p.n ? `<span class="muted sm">Mejor de ${p.n} series${p.vol != null && isPro() && !p.time ? ` · volumen ${fmt(p.vol)} ${u}` : ''}</span>` : ''}</div><span class="chip-s ${cls}">${d}</span></div>`;
 }
 function aggregate() {
   // progreso por ejercicio en el periodo (primer vs último peso, en su unidad)
@@ -1025,7 +1120,7 @@ function vProgress() {
     const ex = exById(ui.ch.ex);
     b += `<label class="sr" for="exSel">Ejercicio</label><select id="exSel" class="inp sel big-sel" data-f="chEx">${list.map(o => `<option value="${o.x.id}" ${o.x.id === ui.ch.ex ? 'selected' : ''}>${esc(o.x.name)}${list.filter(z => normName(z.x.name) === normName(o.x.name)).length > 1 ? ' · ' + esc(o.day) : ''}</option>`).join('')}</select>`;
     if (ex) {
-      const u = unitOf(ex), full = history(ex.id).map(h => ({ date: h.date, programId: h.programId, w: r1(conv(h.w, h.unit, u)), r: h.r }));
+      const u = unitOf(ex), full = history(ex.id).map(h => ({ date: h.date, programId: h.programId, w: r1(conv(h.w, h.unit, u)), r: h.r, vol: h.vol != null ? r1(conv(h.vol, h.unit, u)) : null, n: h.n, time: h.time }));
       full.forEach((p, i) => { p.prevW = i ? full[i - 1].w : null; p.prevR = i ? full[i - 1].r : null; });
       const pts = full.filter(p => inRange(p));
       const titles = { lineas: ['Peso de la serie efectiva', 'Toca un punto para ver la sesión. Los puntos resaltados marcan cuando subiste peso.'], columnas: ['Reps al fallo por sesión', ex.repMax ? `Las columnas resaltadas llegaron al tope de ${ex.repMax} reps; la siguiente sube el peso.` : 'Define reps objetivo en Planear para ver la línea de tope.'], dispersion: ['Peso contra reps', 'Cada punto es una sesión. Hacia arriba y a la derecha = más fuerte.'], tabla: ['Historial', 'De la más reciente a la más antigua.'] };
@@ -1117,7 +1212,8 @@ function exportCsv() {
     s.entries.forEach((e, i) => {
       const g = (cat.find(c => c.id === e.exerciseId) || {}).group || '';
       (e.warm || []).forEach((w, k) => rows.push([s.date, db.programName || '', pn, dn, e.name, g, 'Calentamiento ' + (k + 1), w.w, unitOf(e), w.r, '', dm, `OMR|${s.id}|${i}|C${k}`]));
-      rows.push([s.date, db.programName || '', pn, dn, e.name, g, 'Efectiva', e.eff.w, unitOf(e), e.eff.r, e.eff.tech || '', dm, `OMR|${s.id}|${i}|E`]);
+      if (e.sets) e.sets.forEach((x, k) => rows.push([s.date, db.programName || '', pn, dn, e.name, g, 'Serie ' + (k + 1), x.w, unitOf(e), x.r, '', dm, `OMR|${s.id}|${i}|S${k}`]));
+      else rows.push([s.date, db.programName || '', pn, dn, e.name, g, 'Efectiva', e.eff.w, unitOf(e), e.eff.r, e.eff.tech || '', dm, `OMR|${s.id}|${i}|E`]);
     });
   });
   const csv = '﻿' + rows.map(r => r.map(c => { const v = String(c); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',')).join('\r\n');
@@ -1207,7 +1303,7 @@ function planCsvImport(text) {
     if (id[0] === 'HD') { P.foreign++; return; }
     if (id[0] !== 'OMR' || !ses[id[1]] || !ses[id[1]].entries[+id[2]]) { P.skipped++; return; }
     const s = ses[id[1]], ei = +id[2], e = s.entries[ei], k = id[3];
-    const tgt = k === 'E' ? e.eff : (e.warm || [])[+String(k).slice(1)];
+    const tgt = k === 'E' ? e.eff : String(k)[0] === 'S' ? (e.sets || [])[+String(k).slice(1)] : (e.warm || [])[+String(k).slice(1)];
     if (!tgt) { P.skipped++; return; }
     P.rows++;
     const g = v => ci[v] >= 0 ? String(r[ci[v]] == null ? '' : r[ci[v]]).trim() : '';
@@ -1236,6 +1332,7 @@ function planCsvImport(text) {
 }
 function applyCsvImport(P) {
   P.sets.forEach(c => { c.tgt[c.f] = c.v; });
+  db.sessions.forEach(x => x.entries.forEach(e => { if (e.sets && e.sets.length) { const b = bestOf(e.sets); e.eff = { w: b.w, r: b.r, tech: 'Normal' }; e.vol = r1(e.sets.reduce((a, y) => a + y.w * y.r, 0)); } }));
   Object.values(P.entries).forEach(x => { if (x.unit) x.e.unit = x.unit; });
   Object.values(P.sessions).forEach(x => {
     if (x.date) x.s.date = x.date;
@@ -1392,13 +1489,30 @@ const ACT = {
   },
 
   step: d => {
-    const e = cur(), t = d.s === 'e' ? e.eff : e.warm[+d.s], st = d.f === 'w' ? stepFor(unitOf(e)) : 1;
+    const e = cur(), t = setRef(e, d.s), st = d.f === 'w' ? stepFor(unitOf(e)) : (e.time ? 5 : 1);
     t[d.f] = Math.max(0, Math.round((t[d.f] + st * +d.d) * 100) / 100); save(); rerender();
   },
   toggleWarm: d => { const w = cur().warm[+d.k]; w.done = !w.done; if (w.done) { tStart(); startRest(db.settings.restWarm); } save(); rerender(); },
   addWarm: () => { const e = cur(); e.warm.push({ w: roundTo(e.eff.w * 0.75, stepFor(unitOf(e))), r: 6, done: false }); save(); rerender(); },
   delWarm: () => { cur().warm.length = 1; save(); rerender(); },
   tech: d => { cur().eff.tech = d.t; save(); rerender(); },
+  toggleSet: d => { const e = cur(), x = e.sets[+d.k]; x.done = !x.done; if (x.done) { if (ui.iso && ui.iso.s === 'x' + d.k) ui.iso = null; tStart(); startRest(e.rest || 90); } save(); rerender(); },
+  addSet: () => { const e = cur(), l = e.sets[e.sets.length - 1]; e.sets.push({ w: l.w, r: l.r, done: false }); save(); rerender(); },
+  delSet: () => { const e = cur(); if (e.sets.length > 1) e.sets.pop(); save(); rerender(); },
+  isoGo: d => { const ex = curEx(); ui.iso = { s: d.s, start: Date.now(), goal: ex.repMax || ex.repMin || 0 }; stopRest(); tStart(); save(); rerender(); },
+  isoStop: () => {
+    if (!ui.iso) return; const e = cur(), t = setRef(e, ui.iso.s);
+    if (t) { t.r = Math.max(1, Math.round((Date.now() - ui.iso.start) / 1000)); t.done = true; }
+    ui.iso = null; startRest(isSeries(e) ? (e.rest || 90) : db.settings.restEff); save(); rerender();
+  },
+  calGo: () => { const c = db.current; c.calOk = true; tStart(); startRest(c.calGen * 60, 'Calentamiento general'); save(); rerender(); },
+  calSkip: () => { db.current.calOk = true; save(); rerender(); },
+  calGen: d => { routine(ui.planId).calGen = +d.n; save(); rerender(); },
+  exMode: d => { const x = routine(ui.planId).exercises[+d.i]; if (d.m === 'series') { x.mode = 'series'; x.sets = x.sets || 3; x.rest = x.rest || 90; } else delete x.mode; save(); rerender(); },
+  exSets: d => { routine(ui.planId).exercises[+d.i].sets = +d.n; save(); rerender(); },
+  exRest: d => { routine(ui.planId).exercises[+d.i].rest = +d.n; save(); rerender(); },
+  exTime: d => { const x = routine(ui.planId).exercises[+d.i]; if (d.v === '1') x.time = true; else delete x.time; save(); rerender(); },
+  lvl: d => { ui.lvl = d.v; const g = (NIVELES.find(n => n[0] === d.v) || [])[2] || 'hd'; if (tplG(tplById(ui.tpl)) !== g) ui.tpl = TEMPLATES.find(t => tplG(t) === g).id; rerender(); },
   toggleEff: () => { const e = cur(); e.eff.done = !e.eff.done; if (e.eff.done) { tStart(); startRest(db.settings.restEff); } save(); rerender(); },
   tStart: () => { tStart(); save(); rerender(); },
   tPause: () => { tPause(); save(); rerender(); },
@@ -1408,8 +1522,8 @@ const ACT = {
     if (c && !anyDone(c) && tElapsed(c) === 0) { db.current = null; stopRest(); save(); toast('No registraste nada: el entreno se cerró sin guardar'); }
     go('home');
   },
-  prevEx: () => { db.current.idx--; save(); go('train'); },
-  nextEx: () => { db.current.idx++; save(); go('train'); },
+  prevEx: () => { ui.iso = null; db.current.idx--; save(); go('train'); },
+  nextEx: () => { ui.iso = null; db.current.idx++; save(); go('train'); },
   finish: finishTraining,
   discard: () => { if (confirm('¿Descartar este entreno? No se guardará nada.')) { db.current = null; stopRest(); save(); go('home'); } },
   skipRest: () => { stopRest(); rerender(); },
@@ -1465,7 +1579,7 @@ const ACT = {
   }
 };
 
-Object.assign(ACT, ILUS_ACT);
+Object.assign(ACT, ILUS_ACT, SIM_ACT);
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-a]');
   if (!b || b.disabled) return;
@@ -1477,7 +1591,7 @@ document.addEventListener('change', ev => {
   if (t.id === 'importFile') { importFile(t.files[0]); t.value = ''; return; }
   if (t.id === 'csvFile') { const fl = t.files[0]; t.value = ''; if (fl) readText(fl, importCsvText); return; }
   if (ui.view === 'train' && t.dataset.s !== undefined) {
-    const e = cur(), tg = t.dataset.s === 'e' ? e.eff : e.warm[+t.dataset.s];
+    const e = cur(), tg = setRef(e, t.dataset.s);
     tg[f] = Math.max(0, num(t.value, tg[f])); if (f === 'r') tg.r = Math.round(tg.r);
     save(); rerender(); return;
   }
